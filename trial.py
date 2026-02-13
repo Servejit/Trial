@@ -45,7 +45,7 @@ stockstar_list = [
 # ---------------------------------------------------
 # SOUND SETTINGS
 
-sound_alert = st.toggle("🔊 Enable Alert Sound for -3% Green Stocks", value=False)
+sound_alert = st.toggle("🔊 Enable Alert Sound for -5% Green Stocks", value=False)
 
 st.markdown("### 🎵 Alert Sound Settings")
 
@@ -54,7 +54,6 @@ uploaded_sound = st.file_uploader(
     type=["mp3", "wav"]
 )
 
-# Soft pleasant default notification sound
 DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
@@ -153,12 +152,12 @@ if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# CHECK -3% TRIGGER
+# CHECK -5% TRIGGER
 
 green_trigger = False
 
 for _, row in df.iterrows():
-    if row["Stock"] in stockstar_list and row["P2L %"] < -3:
+    if row["Stock"] in stockstar_list and row["P2L %"] < -5:
         green_trigger = True
         break
 
@@ -184,11 +183,11 @@ def generate_html_table(dataframe):
             style = "padding:6px; border:1px solid #444; text-align:center;"
 
             if col == "Stock":
-                if row["Stock"] in stockstar_list and row["P2L %"] < -3:
+                if row["Stock"] in stockstar_list and row["P2L %"] < -5:
                     style += "color:green; font-weight:bold; animation: flash 1s infinite;"
-                elif row["Stock"] in stockstar_list and row["P2L %"] < -2:
+                elif row["Stock"] in stockstar_list and row["P2L %"] < -3:
                     style += "color:orange; font-weight:bold;"
-                elif row["P2L %"] < -1.5:
+                elif row["P2L %"] < -2:
                     style += "color:hotpink; font-weight:bold;"
 
             if col in ["P2L %", "% Chg"]:
@@ -211,29 +210,26 @@ def generate_html_table(dataframe):
 st.markdown(generate_html_table(df), unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SOUND LOGIC
+# SOUND ALERT (-5% RULE)
 
 if sound_alert and green_trigger:
 
     if uploaded_sound is not None:
-        # Convert uploaded file to base64
         audio_bytes = uploaded_sound.read()
         b64 = base64.b64encode(audio_bytes).decode()
         file_type = uploaded_sound.type
 
-        audio_html = f"""
+        st.markdown(f"""
         <audio autoplay loop>
             <source src="data:{file_type};base64,{b64}" type="{file_type}">
         </audio>
-        """
-        st.markdown(audio_html, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     else:
-        # Default soft sound
         st.markdown(f"""
-            <audio autoplay loop>
-                <source src="{DEFAULT_SOUND_URL}" type="audio/mpeg">
-            </audio>
+        <audio autoplay loop>
+            <source src="{DEFAULT_SOUND_URL}" type="audio/mpeg">
+        </audio>
         """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
