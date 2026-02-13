@@ -142,7 +142,7 @@ if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# CHECK -3% GREEN TRIGGER
+# CHECK -3% TRIGGER
 
 green_trigger = False
 
@@ -200,15 +200,13 @@ def generate_html_table(dataframe):
 st.markdown(generate_html_table(df), unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SOUND ALERT (-3% RULE)
+# SOUND ALERT (Browser-Compatible)
 
 if sound_alert and green_trigger:
     st.markdown("""
-    <script>
-    var audio = new Audio("https://www.soundjay.com/buttons/sounds/beep-07.mp3");
-    audio.loop = true;
-    audio.play();
-    </script>
+        <audio autoplay loop>
+            <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="audio/mpeg">
+        </audio>
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
