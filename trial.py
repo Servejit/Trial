@@ -11,7 +11,7 @@ st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
 
 # ---------------------------------------------------
-# FLASHING GREEN CSS
+# FLASHING CSS
 
 st.markdown("""
 <style>
@@ -19,6 +19,10 @@ st.markdown("""
     0% { opacity: 1; }
     50% { opacity: 0.2; }
     100% { opacity: 1; }
+}
+table {
+    background-color:#0e1117;
+    color:white;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -38,7 +42,7 @@ stockstar_list = [
 ]
 
 # ---------------------------------------------------
-# SOUND ALERT TOGGLE
+# SOUND TOGGLE
 
 sound_alert = st.toggle("🔊 Enable Alert Sound for -3% Green Stocks", value=False)
 
@@ -102,7 +106,6 @@ def fetch_data():
                 "High": high,
                 "Low": low
             })
-
         except:
             pass
 
@@ -139,76 +142,77 @@ if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# COLUMN COLOR (Green/Red values)
-
-def highlight_p2l(val):
-    if pd.isna(val):
-        return ""
-    elif val > 0:
-        return "color: green; font-weight: bold"
-    elif val < 0:
-        return "color: red; font-weight: bold"
-    else:
-        return ""
-
-styled_df = df.style.format("{:.2f}", subset=numeric_cols)
-styled_df = styled_df.applymap(highlight_p2l, subset=["P2L %", "% Chg"])
-
-# ---------------------------------------------------
-# STOCK NAME STYLING (Priority Logic)
-
-def stock_color(row):
-    styles = []
-    for col in df.columns:
-        if col == "Stock":
-
-            # 🟢🔥 Flashing Green (Highest Priority)
-            if row["Stock"] in stockstar_list and row["P2L %"] < -3:
-                styles.append("color: green; font-weight: bold; animation: flash 1s infinite")
-
-            # 🟠 Orange
-            elif row["Stock"] in stockstar_list and row["P2L %"] < -2:
-                styles.append("color: orange; font-weight: bold")
-
-            # 💗 Pink
-            elif row["P2L %"] < -1.5:
-                styles.append("color: hotpink; font-weight: bold")
-
-            else:
-                styles.append("")
-        else:
-            styles.append("")
-    return styles
-
-styled_df = styled_df.apply(stock_color, axis=1)
-
-# ---------------------------------------------------
-# CHECK IF ANY FLASHING GREEN STOCK EXISTS
+# CHECK -3% GREEN TRIGGER
 
 green_trigger = False
 
 for _, row in df.iterrows():
-    if row["Stock"] in stockstar_list and row["P2L %"] < -5:
+    if row["Stock"] in stockstar_list and row["P2L %"] < -3:
         green_trigger = True
         break
 
 # ---------------------------------------------------
-# DISPLAY TABLE
+# GENERATE HTML TABLE (Animation Supported)
 
-st.dataframe(styled_df, use_container_width=True)
+def generate_html_table(dataframe):
+    html = """
+    <table style="width:100%; border-collapse: collapse;">
+    <tr style="background-color:#111;">
+    """
+
+    for col in dataframe.columns:
+        html += f"<th style='padding:8px; border:1px solid #444;'>{col}</th>"
+
+    html += "</tr>"
+
+    for _, row in dataframe.iterrows():
+        html += "<tr>"
+
+        for col in dataframe.columns:
+            value = row[col]
+            style = "padding:6px; border:1px solid #444; text-align:center;"
+
+            if col == "Stock":
+                if row["Stock"] in stockstar_list and row["P2L %"] < -3:
+                    style += "color:green; font-weight:bold; animation: flash 1s infinite;"
+                elif row["Stock"] in stockstar_list and row["P2L %"] < -2:
+                    style += "color:orange; font-weight:bold;"
+                elif row["P2L %"] < -1.5:
+                    style += "color:hotpink; font-weight:bold;"
+
+            if col in ["P2L %", "% Chg"]:
+                if value > 0:
+                    style += "color:green; font-weight:bold;"
+                elif value < 0:
+                    style += "color:red; font-weight:bold;"
+
+            if isinstance(value, float):
+                value = f"{value:.2f}"
+
+            html += f"<td style='{style}'>{value}</td>"
+
+        html += "</tr>"
+
+    html += "</table>"
+    return html
+
+
+st.markdown(generate_html_table(df), unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# PLAY SOUND IF ENABLED
+# SOUND ALERT (-3% RULE)
 
 if sound_alert and green_trigger:
     st.markdown("""
-        <audio autoplay loop>
-            <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="audio/mpeg">
-        </audio>
+    <script>
+    var audio = new Audio("https://www.soundjay.com/buttons/sounds/beep-07.mp3");
+    audio.loop = true;
+    audio.play();
+    </script>
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# AVERAGE P2L LINE
+# AVERAGE P2L
 
 average_p2l = df["P2L %"].mean()
 
