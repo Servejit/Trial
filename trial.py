@@ -107,7 +107,7 @@ if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# COLOR STYLING
+# COLOR STYLING (Cloud Compatible)
 
 def highlight_p2l(val):
     if pd.isna(val):
@@ -119,17 +119,19 @@ def highlight_p2l(val):
     else:
         return ""
 
-# ✅ Pink color for stock name if P2L < 1%
-def highlight_stock(row):
-    if pd.notna(row["P2L %"]) and row["P2L %"] < 1:
-        return ["color: deeppink; font-weight: bold"] + [""] * (len(row) - 1)
-    return [""] * len(row)
+styled_df = df.style.format("{:.2f}", subset=numeric_cols)
 
-styled_df = (
-    df.style
-    .format("{:.2f}", subset=numeric_cols)
-    .applymap(highlight_p2l, subset=["P2L %", "% Chg"])
-    .apply(highlight_stock, axis=1)
+# Green/Red for P2L and % Chg
+styled_df = styled_df.applymap(highlight_p2l, subset=["P2L %", "% Chg"])
+
+# Pink stock name if P2L < 1%
+styled_df = styled_df.apply(
+    lambda row: [
+        "color: deeppink; font-weight: bold" if (col == "Stock" and row["P2L %"] < 1)
+        else ""
+        for col in df.columns
+    ],
+    axis=1
 )
 
 # ---------------------------------------------------
