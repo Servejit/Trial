@@ -151,8 +151,8 @@ def stock_color(row):
                 styles.append("color: orange; font-weight: bold")
 
             # 💗 Pink rule
-            elif row["P2L %"] < 1:
-                styles.append("color: deeppink; font-weight: bold")
+            elif row["P2L %"] < -1.5:
+                styles.append("color: hotpink; font-weight: bold")
 
             else:
                 styles.append("")
