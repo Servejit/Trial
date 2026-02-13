@@ -163,6 +163,15 @@ def stock_color(row):
 styled_df = styled_df.apply(stock_color, axis=1)
 
 # ---------------------------------------------------
-# DISPLAY
+# DISPLAY TABLE
 
 st.dataframe(styled_df, use_container_width=True)
+
+# ---------------------------------------------------
+# AVERAGE P2L LINE
+
+average_p2l = df["P2L %"].mean()
+
+st.markdown(
+    f"### 📊 Average P2L of All Stocks is **{average_p2l:.2f}%**"
+)
