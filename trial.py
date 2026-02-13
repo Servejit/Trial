@@ -127,7 +127,7 @@ styled_df = styled_df.applymap(highlight_p2l, subset=["P2L %", "% Chg"])
 # Pink stock name if P2L < 1%
 styled_df = styled_df.apply(
     lambda row: [
-        "color: hotpink; font-weight: bold" if (col == "Stock" and row["P2L %"] < 1)
+        "color: hotpink; font-weight: bold" if (col == "Stock" and row["P2L %"] < -1.5)
         else ""
         for col in df.columns
     ],
