@@ -11,14 +11,26 @@ st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
 
 # ---------------------------------------------------
-# STOCKSTAR INPUT BOX (Supports Multiple Symbols)
+# FLASHING GREEN CSS
+
+st.markdown("""
+<style>
+@keyframes flash {
+    0% { opacity: 1; }
+    50% { opacity: 0.2; }
+    100% { opacity: 1; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------
+# STOCKSTAR INPUT
 
 stockstar_input = st.text_input(
     "⭐ StockStar (Comma Separated)",
     "DLF.NS, CANBK.NS"
 ).upper()
 
-# Convert input into clean list like ["DLF", "CANBK"]
 stockstar_list = [
     s.strip().replace(".NS", "")
     for s in stockstar_input.split(",")
@@ -26,7 +38,12 @@ stockstar_list = [
 ]
 
 # ---------------------------------------------------
-# STOCK LIST (Stock : Reference Low Price)
+# SOUND ALERT TOGGLE
+
+sound_alert = st.toggle("🔊 Enable Alert Sound for -5% Green Stocks", value=False)
+
+# ---------------------------------------------------
+# STOCK LIST
 
 stocks = {
     "CANBK.NS": 142.93,
@@ -122,7 +139,7 @@ if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# COLOR STYLING
+# COLUMN COLOR (Green/Red values)
 
 def highlight_p2l(val):
     if pd.isna(val):
@@ -135,22 +152,25 @@ def highlight_p2l(val):
         return ""
 
 styled_df = df.style.format("{:.2f}", subset=numeric_cols)
-
-# Green/Red styling
 styled_df = styled_df.applymap(highlight_p2l, subset=["P2L %", "% Chg"])
 
-# Stock Name Styling (Priority Logic)
+# ---------------------------------------------------
+# STOCK NAME STYLING (Priority Logic)
 
 def stock_color(row):
     styles = []
     for col in df.columns:
         if col == "Stock":
 
-            # 🟠 Highest Priority: In StockStar list AND P2L < -2%
-            if row["Stock"] in stockstar_list and row["P2L %"] < -2:
+            # 🟢🔥 Flashing Green (Highest Priority)
+            if row["Stock"] in stockstar_list and row["P2L %"] < -5:
+                styles.append("color: green; font-weight: bold; animation: flash 1s infinite")
+
+            # 🟠 Orange
+            elif row["Stock"] in stockstar_list and row["P2L %"] < -2:
                 styles.append("color: orange; font-weight: bold")
 
-            # 💗 Pink rule
+            # 💗 Pink
             elif row["P2L %"] < -1.5:
                 styles.append("color: hotpink; font-weight: bold")
 
@@ -163,9 +183,29 @@ def stock_color(row):
 styled_df = styled_df.apply(stock_color, axis=1)
 
 # ---------------------------------------------------
+# CHECK IF ANY FLASHING GREEN STOCK EXISTS
+
+green_trigger = False
+
+for _, row in df.iterrows():
+    if row["Stock"] in stockstar_list and row["P2L %"] < -5:
+        green_trigger = True
+        break
+
+# ---------------------------------------------------
 # DISPLAY TABLE
 
 st.dataframe(styled_df, use_container_width=True)
+
+# ---------------------------------------------------
+# PLAY SOUND IF ENABLED
+
+if sound_alert and green_trigger:
+    st.markdown("""
+        <audio autoplay loop>
+            <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="audio/mpeg">
+        </audio>
+    """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
 # AVERAGE P2L LINE
