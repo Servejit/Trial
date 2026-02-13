@@ -38,7 +38,7 @@ def fetch_data():
 
     data = yf.download(
         tickers=symbols,
-        period="1d",
+        period="2d",   # Needed to get previous close
         interval="1d",
         group_by="ticker",
         progress=False,
@@ -52,16 +52,19 @@ def fetch_data():
             ref_low = stocks[sym]
 
             price = data[sym]["Close"].iloc[-1]
+            prev_close = data[sym]["Close"].iloc[-2]
             open_p = data[sym]["Open"].iloc[-1]
             high = data[sym]["High"].iloc[-1]
             low = data[sym]["Low"].iloc[-1]
 
             p2l = ((price - ref_low) / ref_low) * 100
+            pct_chg = ((price - prev_close) / prev_close) * 100
 
             rows.append({
                 "Stock": sym.replace(".NS", ""),
                 "P2L %": p2l,
                 "Price": price,
+                "% Chg": pct_chg,   # ✅ New Column Added
                 "Low Price": ref_low,
                 "Open": open_p,
                 "High": high,
@@ -96,7 +99,8 @@ if df.empty:
     st.stop()
 
 # Convert numeric safely
-numeric_cols = ["P2L %", "Price", "Low Price", "Open", "High", "Low"]
+numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
+
 for col in numeric_cols:
     df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -120,7 +124,7 @@ def highlight_p2l(val):
 styled_df = (
     df.style
     .format("{:.2f}", subset=numeric_cols)
-    .applymap(highlight_p2l, subset=["P2L %"])
+    .applymap(highlight_p2l, subset=["P2L %", "% Chg"])  # highlight both
 )
 
 # ---------------------------------------------------
