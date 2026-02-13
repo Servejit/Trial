@@ -11,9 +11,9 @@ st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
 
 # ---------------------------------------------------
-# ⭐ STOCKSTAR INPUT BOX
+# STOCKSTAR INPUT BOX
 
-stockstar_input = st.text_input("⭐ StockStar", "").upper().strip()
+stockstar = st.text_input("⭐ StockStar", "DLF.NS").upper().strip()
 
 # ---------------------------------------------------
 # STOCK LIST (Stock : Reference Low Price)
@@ -129,24 +129,31 @@ styled_df = df.style.format("{:.2f}", subset=numeric_cols)
 # Green/Red for P2L and % Chg
 styled_df = styled_df.applymap(highlight_p2l, subset=["P2L %", "% Chg"])
 
-# Stock name coloring logic
-def highlight_stock(row):
+# Stock name color logic (Priority Based)
+def stock_color(row):
     styles = []
     for col in df.columns:
         if col == "Stock":
-            # ⭐ Priority 1: StockStar → ORANGE
-            if stockstar_input and row["Stock"] == stockstar_input:
+
+            # ⭐ Highest Priority: StockStar & P2L < -2 → ORANGE
+            if (
+                stockstar != "" and
+                row["Stock"] == stockstar and
+                row["P2L %"] < -2
+            ):
                 styles.append("color: orange; font-weight: bold")
-            # Priority 2: P2L < 1 → PINK
+
+            # Pink rule: P2L < 1%
             elif row["P2L %"] < 1:
                 styles.append("color: deeppink; font-weight: bold")
+
             else:
                 styles.append("")
         else:
             styles.append("")
     return styles
 
-styled_df = styled_df.apply(highlight_stock, axis=1)
+styled_df = styled_df.apply(stock_color, axis=1)
 
 # ---------------------------------------------------
 # DISPLAY
