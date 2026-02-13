@@ -13,7 +13,8 @@ st.title("📊 Live Prices with P2L")
 # ---------------------------------------------------
 # STOCKSTAR INPUT BOX
 
-stockstar = st.text_input("⭐ StockStar", "DLF,Canbk").upper().strip()
+stockstar = st.text_input("⭐ StockStar", "DLF.NS,CANBK.NS").upper().strip().replace(".NS", "")
+
 
 # ---------------------------------------------------
 # STOCK LIST (Stock : Reference Low Price)
