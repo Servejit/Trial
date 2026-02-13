@@ -11,10 +11,19 @@ st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
 
 # ---------------------------------------------------
-# STOCKSTAR INPUT BOX
+# STOCKSTAR INPUT BOX (Supports Multiple Symbols)
 
-stockstar = st.text_input("⭐ StockStar", "DLF.NS,CANBK.NS").upper().strip().replace(".NS", "")
+stockstar_input = st.text_input(
+    "⭐ StockStar (Comma Separated)",
+    "DLF.NS, CANBK.NS"
+).upper()
 
+# Convert input into clean list like ["DLF", "CANBK"]
+stockstar_list = [
+    s.strip().replace(".NS", "")
+    for s in stockstar_input.split(",")
+    if s.strip() != ""
+]
 
 # ---------------------------------------------------
 # STOCK LIST (Stock : Reference Low Price)
@@ -127,24 +136,21 @@ def highlight_p2l(val):
 
 styled_df = df.style.format("{:.2f}", subset=numeric_cols)
 
-# Green/Red for P2L and % Chg
+# Green/Red styling
 styled_df = styled_df.applymap(highlight_p2l, subset=["P2L %", "% Chg"])
 
-# Stock name color logic (Priority Based)
+# Stock Name Styling (Priority Logic)
+
 def stock_color(row):
     styles = []
     for col in df.columns:
         if col == "Stock":
 
-            # ⭐ Highest Priority: StockStar & P2L < -2 → ORANGE
-            if (
-                stockstar != "" and
-                row["Stock"] == stockstar and
-                row["P2L %"] < -2
-            ):
+            # 🟠 Highest Priority: In StockStar list AND P2L < -2%
+            if row["Stock"] in stockstar_list and row["P2L %"] < -2:
                 styles.append("color: orange; font-weight: bold")
 
-            # Pink rule: P2L < 1%
+            # 💗 Pink rule
             elif row["P2L %"] < 1:
                 styles.append("color: deeppink; font-weight: bold")
 
