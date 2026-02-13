@@ -163,7 +163,7 @@ def stock_color(row):
         if col == "Stock":
 
             # 🟢🔥 Flashing Green (Highest Priority)
-            if row["Stock"] in stockstar_list and row["P2L %"] < -5:
+            if row["Stock"] in stockstar_list and row["P2L %"] < -3:
                 styles.append("color: green; font-weight: bold; animation: flash 1s infinite")
 
             # 🟠 Orange
