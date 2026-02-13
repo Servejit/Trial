@@ -40,7 +40,7 @@ stockstar_list = [
 # ---------------------------------------------------
 # SOUND ALERT TOGGLE
 
-sound_alert = st.toggle("🔊 Enable Alert Sound for -5% Green Stocks", value=False)
+sound_alert = st.toggle("🔊 Enable Alert Sound for -3% Green Stocks", value=False)
 
 # ---------------------------------------------------
 # STOCK LIST
