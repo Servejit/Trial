@@ -30,7 +30,7 @@ stocks = {
 }
 
 # ---------------------------------------------------
-# FETCH DATA (FAST + STABLE)
+# FETCH DATA
 
 @st.cache_data(ttl=60)
 def fetch_data():
@@ -38,7 +38,7 @@ def fetch_data():
 
     data = yf.download(
         tickers=symbols,
-        period="2d",   # Needed to get previous close
+        period="2d",
         interval="1d",
         group_by="ticker",
         progress=False,
@@ -64,7 +64,7 @@ def fetch_data():
                 "Stock": sym.replace(".NS", ""),
                 "P2L %": p2l,
                 "Price": price,
-                "% Chg": pct_chg,   # ✅ New Column Added
+                "% Chg": pct_chg,
                 "Low Price": ref_low,
                 "Open": open_p,
                 "High": high,
@@ -98,13 +98,11 @@ if df.empty:
     st.error("⚠️ No data received from Yahoo Finance.")
     st.stop()
 
-# Convert numeric safely
 numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
 
 for col in numeric_cols:
     df[col] = pd.to_numeric(df[col], errors="coerce")
 
-# Sort if clicked
 if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
@@ -121,10 +119,17 @@ def highlight_p2l(val):
     else:
         return ""
 
+# ✅ Pink color for stock name if P2L < 1%
+def highlight_stock(row):
+    if pd.notna(row["P2L %"]) and row["P2L %"] < 1:
+        return ["color: deeppink; font-weight: bold"] + [""] * (len(row) - 1)
+    return [""] * len(row)
+
 styled_df = (
     df.style
     .format("{:.2f}", subset=numeric_cols)
-    .applymap(highlight_p2l, subset=["P2L %", "% Chg"])  # highlight both
+    .applymap(highlight_p2l, subset=["P2L %", "% Chg"])
+    .apply(highlight_stock, axis=1)
 )
 
 # ---------------------------------------------------
