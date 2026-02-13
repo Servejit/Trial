@@ -6,6 +6,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import base64
 
 st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
@@ -42,9 +43,19 @@ stockstar_list = [
 ]
 
 # ---------------------------------------------------
-# SOUND TOGGLE
+# SOUND SETTINGS
 
 sound_alert = st.toggle("🔊 Enable Alert Sound for -3% Green Stocks", value=False)
+
+st.markdown("### 🎵 Alert Sound Settings")
+
+uploaded_sound = st.file_uploader(
+    "Upload Your Custom Sound (.mp3 or .wav)",
+    type=["mp3", "wav"]
+)
+
+# Soft pleasant default notification sound
+DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
 # STOCK LIST
@@ -152,7 +163,7 @@ for _, row in df.iterrows():
         break
 
 # ---------------------------------------------------
-# GENERATE HTML TABLE (Animation Supported)
+# GENERATE HTML TABLE
 
 def generate_html_table(dataframe):
     html = """
@@ -200,14 +211,30 @@ def generate_html_table(dataframe):
 st.markdown(generate_html_table(df), unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SOUND ALERT (Browser-Compatible)
+# SOUND LOGIC
 
 if sound_alert and green_trigger:
-    st.markdown("""
+
+    if uploaded_sound is not None:
+        # Convert uploaded file to base64
+        audio_bytes = uploaded_sound.read()
+        b64 = base64.b64encode(audio_bytes).decode()
+        file_type = uploaded_sound.type
+
+        audio_html = f"""
         <audio autoplay loop>
-            <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="audio/mpeg">
+            <source src="data:{file_type};base64,{b64}" type="{file_type}">
         </audio>
-    """, unsafe_allow_html=True)
+        """
+        st.markdown(audio_html, unsafe_allow_html=True)
+
+    else:
+        # Default soft sound
+        st.markdown(f"""
+            <audio autoplay loop>
+                <source src="{DEFAULT_SOUND_URL}" type="audio/mpeg">
+            </audio>
+        """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
 # AVERAGE P2L
