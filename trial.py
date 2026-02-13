@@ -11,6 +11,11 @@ st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
 
 # ---------------------------------------------------
+# ⭐ STOCKSTAR INPUT BOX
+
+stockstar_input = st.text_input("⭐ StockStar", "").upper().strip()
+
+# ---------------------------------------------------
 # STOCK LIST (Stock : Reference Low Price)
 
 stocks = {
@@ -107,7 +112,7 @@ if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# COLOR STYLING (Cloud Compatible)
+# COLOR STYLING
 
 def highlight_p2l(val):
     if pd.isna(val):
@@ -124,15 +129,24 @@ styled_df = df.style.format("{:.2f}", subset=numeric_cols)
 # Green/Red for P2L and % Chg
 styled_df = styled_df.applymap(highlight_p2l, subset=["P2L %", "% Chg"])
 
-# Pink stock name if P2L < 1%
-styled_df = styled_df.apply(
-    lambda row: [
-        "color: hotpink; font-weight: bold" if (col == "Stock" and row["P2L %"] < -1.5)
-        else ""
-        for col in df.columns
-    ],
-    axis=1
-)
+# Stock name coloring logic
+def highlight_stock(row):
+    styles = []
+    for col in df.columns:
+        if col == "Stock":
+            # ⭐ Priority 1: StockStar → ORANGE
+            if stockstar_input and row["Stock"] == stockstar_input:
+                styles.append("color: orange; font-weight: bold")
+            # Priority 2: P2L < 1 → PINK
+            elif row["P2L %"] < 1:
+                styles.append("color: deeppink; font-weight: bold")
+            else:
+                styles.append("")
+        else:
+            styles.append("")
+    return styles
+
+styled_df = styled_df.apply(highlight_stock, axis=1)
 
 # ---------------------------------------------------
 # DISPLAY
