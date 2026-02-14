@@ -11,69 +11,92 @@ import time
 # ---------------------------------------------------
 # TELEGRAM SETTINGS
 
-BOT_TOKEN = "8371973661:AAFTOjh53yKmmgv3eXqD5wf8Ki6XXrZPq2c"
-CHAT_ID = "5355913841"
+BOT_TOKEN = "PASTE_NEW_TOKEN"
+CHAT_ID = "PASTE_CHAT_ID"
 
 # ---------------------------------------------------
 
-st.set_page_config(
-    page_title="Live P2L",
-    layout="wide"
-)
+st.set_page_config(layout="wide")
 
-# FIX TOP SPACING
+# ---------------------------------------------------
+# CSS
+
 st.markdown("""
+
 <style>
 
 .block-container
 {
-padding-top:3rem;
+padding-top:1rem;
 padding-bottom:0rem;
 }
 
-@keyframes flash {
-0% {opacity:1;}
-50% {opacity:0.2;}
-100% {opacity:1;}
+.heading
+{
+background:black;
+color:white;
+padding:6px;
+font-size:18px;
+font-weight:bold;
+}
+
+.upload
+{
+font-size:12px;
+}
+
+.table-container
+{
+overflow-x:auto;
+}
+
+table
+{
+min-width:900px;
+border-collapse:collapse;
+}
+
+th, td
+{
+padding:6px;
+border:1px solid #444;
+text-align:center;
+}
+
+@keyframes flash
+{
+0%{opacity:1;}
+50%{opacity:0.2;}
+100%{opacity:1;}
 }
 
 </style>
+
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# HEADING
+# CONTROL ROW
 
-st.markdown("## 📊 Live Price with P2L")
+c1,c2,c3,c4,c5 = st.columns([1,1,1,1,4])
 
-# ---------------------------------------------------
-# TOP CONTROL PANEL
+with c1:
+    refresh = st.button("Refresh")
 
-col1,col2,col3,col4,col5 = st.columns([1,1,1,1,3])
+with c2:
+    sort = st.button("Sort")
 
-with col1:
+with c3:
+    sound_alert = st.toggle("Sound")
 
-    refresh = st.button("🔄 Refresh")
+with c4:
+    telegram_alert = st.toggle("Alert")
 
-with col2:
-
-    sort_clicked = st.button("📈 Sort P2L%")
-
-with col3:
-
-    sound_alert = st.toggle("🔊 Sound", False)
-
-with col4:
-
-    telegram_alert = st.toggle("📲 Alert", False)
-
-with col5:
-
+with c5:
     stockstar_input = st.text_input(
-        "⭐ StockStar",
+        "StockStar",
         "DLF.NS, CANBK.NS",
         label_visibility="collapsed"
     ).upper()
-
 
 stockstar_list = [
 s.strip().replace(".NS","")
@@ -81,7 +104,7 @@ for s in stockstar_input.split(",")
 ]
 
 # ---------------------------------------------------
-# SMALL SOUND UPLOAD
+# SMALL UPLOAD
 
 uploaded_sound = st.file_uploader(
 "",
@@ -90,6 +113,17 @@ label_visibility="collapsed"
 )
 
 DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+
+# ---------------------------------------------------
+# HEADING ABOVE OUTPUT
+
+st.markdown(
+
+'<div class="heading">Live Price with P2L</div>',
+
+unsafe_allow_html=True
+
+)
 
 # ---------------------------------------------------
 # STOCK LIST
@@ -106,7 +140,7 @@ stocks = {
 }
 
 # ---------------------------------------------------
-# FETCH DATA
+# FETCH
 
 @st.cache_data(ttl=60)
 
@@ -135,6 +169,10 @@ def fetch():
             price=data[sym]["Close"].iloc[-1]
             prev=data[sym]["Close"].iloc[-2]
 
+            open_p=data[sym]["Open"].iloc[-1]
+            high=data[sym]["High"].iloc[-1]
+            low=data[sym]["Low"].iloc[-1]
+
             p2l=((price-ref)/ref)*100
             chg=((price-prev)/prev)*100
 
@@ -143,7 +181,10 @@ def fetch():
                 "Stock":sym.replace(".NS",""),
                 "P2L %":p2l,
                 "Price":price,
-                "%Chg":chg
+                "%Chg":chg,
+                "Open":open_p,
+                "High":high,
+                "Low":low
 
             })
 
@@ -168,12 +209,12 @@ df=fetch()
 # ---------------------------------------------------
 # SORT
 
-if sort_clicked:
+if sort:
 
     df=df.sort_values("P2L %",ascending=False)
 
 # ---------------------------------------------------
-# TELEGRAM FUNCTION
+# TELEGRAM
 
 def send_telegram(msg):
 
@@ -187,7 +228,7 @@ def send_telegram(msg):
     })
 
 # ---------------------------------------------------
-# BACKGROUND ALERT
+# BACKGROUND
 
 def background():
 
@@ -199,16 +240,7 @@ def background():
 
             if row["Stock"] in stockstar_list and row["P2L %"]<-5:
 
-                msg=f"""
-
-ALERT
-
-{row['Stock']}
-
-P2L = {row['P2L %']:.2f}%
-Price = {row['Price']:.2f}
-
-"""
+                msg=f"{row['Stock']} Alert P2L {row['P2L %']:.2f}%"
 
                 send_telegram(msg)
 
@@ -226,60 +258,58 @@ if telegram_alert:
 
 green_trigger=False
 
-html="""
+html='<div class="table-container"><table>'
 
-<table style="width:100%;border-collapse:collapse;">
+html+="<tr>"
 
-<tr style="background:#111;">
+for col in df.columns:
 
-<th>Stock</th>
-<th>P2L %</th>
-<th>Price</th>
-<th>%Chg</th>
+    html+=f"<th>{col}</th>"
 
-</tr>
-
-"""
+html+="</tr>"
 
 for _,row in df.iterrows():
 
     html+="<tr>"
 
     stock=row["Stock"]
-
     p2l=row["P2L %"]
 
-    style=""
+    for col in df.columns:
 
-    if stock in stockstar_list and p2l<-5:
+        value=row[col]
 
-        style="color:lime;font-weight:bold;animation:flash 1s infinite;"
-        green_trigger=True
+        style=""
 
-    elif stock in stockstar_list and p2l<-3:
+        if col=="Stock":
 
-        style="color:orange;font-weight:bold;"
+            if stock in stockstar_list and p2l<-5:
 
-    elif p2l<-2:
+                style="color:lime;font-weight:bold;animation:flash 1s infinite;"
+                green_trigger=True
 
-        style="color:hotpink;font-weight:bold;"
+            elif stock in stockstar_list and p2l<-3:
 
-    html+=f"<td style='{style}'>{stock}</td>"
+                style="color:orange;font-weight:bold;"
 
-    html+=f"<td>{p2l:.2f}</td>"
+            elif p2l<-2:
 
-    html+=f"<td>{row['Price']:.2f}</td>"
+                style="color:hotpink;font-weight:bold;"
 
-    html+=f"<td>{row['%Chg']:.2f}</td>"
+        if isinstance(value,float):
+
+            value=f"{value:.2f}"
+
+        html+=f"<td style='{style}'>{value}</td>"
 
     html+="</tr>"
 
-html+="</table>"
+html+="</table></div>"
 
 st.markdown(html,unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SOUND ALERT
+# SOUND
 
 if sound_alert and green_trigger:
 
@@ -308,7 +338,7 @@ if sound_alert and green_trigger:
 """,unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# AVERAGE
+# AVG
 
 st.write(
 
