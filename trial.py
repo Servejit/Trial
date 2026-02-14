@@ -16,24 +16,33 @@ CHAT_ID = "PASTE_CHAT_ID"
 
 # ---------------------------------------------------
 
-st.set_page_config(page_title="Live P2L", layout="wide")
+st.set_page_config(
+    page_title="Live P2L",
+    layout="wide"
+)
 
-# FIX SPACING
+# ---------------------------------------------------
+# FIX SPACING + FLASH
+
 st.markdown("""
+
 <style>
 
 .block-container
 {
 padding-top:3rem;
+padding-bottom:0rem;
 }
 
-@keyframes flash {
-0% {opacity:1;}
-50% {opacity:0.2;}
-100% {opacity:1;}
+@keyframes flash
+{
+0%{opacity:1;}
+50%{opacity:0.2;}
+100%{opacity:1;}
 }
 
 </style>
+
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
@@ -42,7 +51,7 @@ padding-top:3rem;
 st.markdown("## 📊 Live Price with P2L")
 
 # ---------------------------------------------------
-# SINGLE HORIZONTAL CONTROL BAR
+# SINGLE HORIZONTAL CONTROL LINE
 
 col1,col2,col3,col4,col5 = st.columns([1,1,1,1,4])
 
@@ -53,10 +62,10 @@ with col2:
     sort_clicked = st.button("📈 Sort", use_container_width=True)
 
 with col3:
-    sound_alert = st.toggle("🔊 Sound", False)
+    sound_alert = st.toggle("🔊 Sound")
 
 with col4:
-    telegram_alert = st.toggle("📲 Alert", False)
+    telegram_alert = st.toggle("📲 Alert")
 
 with col5:
     stockstar_input = st.text_input(
@@ -66,12 +75,15 @@ with col5:
 
 
 stockstar_list = [
+
 s.strip().replace(".NS","")
+
 for s in stockstar_input.split(",")
+
 ]
 
 # ---------------------------------------------------
-# SMALL SOUND UPLOAD
+# SOUND UPLOAD (SMALL)
 
 uploaded_sound = st.file_uploader(
 "",
@@ -96,7 +108,7 @@ stocks={
 }
 
 # ---------------------------------------------------
-# FETCH
+# FETCH DATA
 
 @st.cache_data(ttl=60)
 
@@ -133,7 +145,7 @@ def fetch():
                 "Stock":sym.replace(".NS",""),
                 "P2L %":p2l,
                 "Price":price,
-                "%Chg":chg
+                "% Chg":chg
 
             })
 
@@ -146,6 +158,7 @@ def fetch():
 # REFRESH
 
 if refresh:
+
     st.cache_data.clear()
     st.rerun()
 
@@ -154,25 +167,35 @@ if refresh:
 
 df=fetch()
 
+# ---------------------------------------------------
 # SORT
 
 if sort_clicked:
+
     df=df.sort_values("P2L %",ascending=False)
 
 # ---------------------------------------------------
-# TELEGRAM ALERT
+# TELEGRAM FUNCTION
 
 def send_telegram(msg):
 
     url=f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    requests.post(url,data={
+    requests.post(
 
-        "chat_id":CHAT_ID,
-        "text":msg
+        url,
 
-    })
+        data={
 
+            "chat_id":CHAT_ID,
+            "text":msg
+
+        }
+
+    )
+
+# ---------------------------------------------------
+# BACKGROUND ALERT
 
 def background():
 
@@ -192,12 +215,13 @@ ALERT
 
 P2L: {row['P2L %']:.2f}%
 
+Price: {row['Price']:.2f}
+
 """
 
                 send_telegram(msg)
 
         time.sleep(60)
-
 
 if telegram_alert:
 
@@ -207,18 +231,30 @@ if telegram_alert:
     ).start()
 
 # ---------------------------------------------------
-# TABLE
+# TABLE WITH FULL WIDTH SCROLL
 
 green=False
 
 html="""
-<table width=100% border=1>
 
-<tr>
+<div style="overflow-x:auto; width:100%;">
+
+<table style="
+
+width:100%;
+border-collapse:collapse;
+font-size:13px;
+white-space:nowrap;
+
+">
+
+<tr style="background:#111;color:white;">
+
 <th>Stock</th>
 <th>P2L%</th>
 <th>Price</th>
 <th>%Chg</th>
+
 </tr>
 
 """
@@ -228,35 +264,39 @@ for _,row in df.iterrows():
     stock=row["Stock"]
     p2l=row["P2L %"]
 
-    style=""
+    style="padding:6px;"
 
     if stock in stockstar_list and p2l<-5:
 
-        style="color:lime;font-weight:bold;animation:flash 1s infinite;"
+        style+="color:lime;font-weight:bold;animation:flash 1s infinite;"
         green=True
 
     elif stock in stockstar_list and p2l<-3:
 
-        style="color:orange;font-weight:bold;"
+        style+="color:orange;font-weight:bold;"
 
     elif p2l<-2:
 
-        style="color:hotpink;font-weight:bold;"
+        style+="color:hotpink;font-weight:bold;"
+
 
     html+=f"""
 
 <tr>
 
 <td style='{style}'>{stock}</td>
+
 <td>{p2l:.2f}</td>
+
 <td>{row['Price']:.2f}</td>
-<td>{row['%Chg']:.2f}</td>
+
+<td>{row['% Chg']:.2f}</td>
 
 </tr>
 
 """
 
-html+="</table>"
+html+="</table></div>"
 
 st.markdown(html,unsafe_allow_html=True)
 
@@ -268,12 +308,15 @@ if sound_alert and green:
     if uploaded_sound:
 
         audio=uploaded_sound.read()
+
         b64=base64.b64encode(audio).decode()
 
         st.markdown(f"""
 
 <audio autoplay loop>
+
 <source src="data:audio/mp3;base64,{b64}">
+
 </audio>
 
 """,unsafe_allow_html=True)
@@ -283,7 +326,9 @@ if sound_alert and green:
         st.markdown(f"""
 
 <audio autoplay loop>
+
 <source src="{DEFAULT_SOUND}">
+
 </audio>
 
 """,unsafe_allow_html=True)
@@ -294,7 +339,9 @@ if sound_alert and green:
 st.write(
 
 "Average P2L:",
+
 round(df["P2L %"].mean(),2),
+
 "%"
 
 )
