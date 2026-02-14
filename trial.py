@@ -5,8 +5,8 @@ import yfinance as yf
 import pandas as pd
 import base64
 import requests
-import time
 import threading
+import time
 
 # ---------------------------------------------------
 # TELEGRAM SETTINGS
@@ -16,19 +16,19 @@ CHAT_ID = "5355913841"
 
 # ---------------------------------------------------
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Live P2L",
+    layout="wide"
+)
 
-st.markdown("## 📊 Live Price P2L")
-
-# ---------------------------------------------------
-# CSS
-
+# FIX TOP SPACING
 st.markdown("""
 <style>
 
 .block-container
 {
-padding-top:1rem;
+padding-top:3rem;
+padding-bottom:0rem;
 }
 
 @keyframes flash {
@@ -41,24 +41,38 @@ padding-top:1rem;
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# INPUT
+# HEADING
 
-col1,col2,col3 = st.columns([4,2,2])
+st.markdown("## 📊 Live Price with P2L")
+
+# ---------------------------------------------------
+# TOP CONTROL PANEL
+
+col1,col2,col3,col4,col5 = st.columns([1,1,1,1,3])
 
 with col1:
 
-    stockstar_input = st.text_input(
-        "⭐ StockStar",
-        "DLF.NS, CANBK.NS"
-    ).upper()
+    refresh = st.button("🔄 Refresh")
 
 with col2:
 
-    sound_alert = st.toggle("🔊 Sound", False)
+    sort_clicked = st.button("📈 Sort P2L%")
 
 with col3:
 
-    telegram_alert = st.toggle("📲 Telegram", False)
+    sound_alert = st.toggle("🔊 Sound", False)
+
+with col4:
+
+    telegram_alert = st.toggle("📲 Alert", False)
+
+with col5:
+
+    stockstar_input = st.text_input(
+        "⭐ StockStar",
+        "DLF.NS, CANBK.NS",
+        label_visibility="collapsed"
+    ).upper()
 
 
 stockstar_list = [
@@ -67,7 +81,7 @@ for s in stockstar_input.split(",")
 ]
 
 # ---------------------------------------------------
-# SOUND UPLOAD
+# SMALL SOUND UPLOAD
 
 uploaded_sound = st.file_uploader(
 "",
@@ -75,7 +89,7 @@ type=["mp3","wav"],
 label_visibility="collapsed"
 )
 
-DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
 # STOCK LIST
@@ -92,7 +106,7 @@ stocks = {
 }
 
 # ---------------------------------------------------
-# FETCH FUNCTION
+# FETCH DATA
 
 @st.cache_data(ttl=60)
 
@@ -134,32 +148,46 @@ def fetch():
             })
 
         except:
-
             pass
 
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# TELEGRAM SEND
+# REFRESH
+
+if refresh:
+
+    st.cache_data.clear()
+    st.rerun()
+
+# ---------------------------------------------------
+# LOAD
+
+df=fetch()
+
+# ---------------------------------------------------
+# SORT
+
+if sort_clicked:
+
+    df=df.sort_values("P2L %",ascending=False)
+
+# ---------------------------------------------------
+# TELEGRAM FUNCTION
 
 def send_telegram(msg):
 
     url=f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    requests.post(
+    requests.post(url,data={
 
-        url,
-        data={
+        "chat_id":CHAT_ID,
+        "text":msg
 
-            "chat_id":CHAT_ID,
-            "text":msg
-
-        }
-
-    )
+    })
 
 # ---------------------------------------------------
-# BACKGROUND
+# BACKGROUND ALERT
 
 def background():
 
@@ -186,60 +214,63 @@ Price = {row['Price']:.2f}
 
         time.sleep(60)
 
-
-# START THREAD
-
 if telegram_alert:
 
     threading.Thread(
-
         target=background,
         daemon=True
-
     ).start()
-
-# ---------------------------------------------------
-# DISPLAY
-
-df=fetch()
 
 # ---------------------------------------------------
 # TABLE
 
 green_trigger=False
 
-html="<table width=100% border=1>"
+html="""
 
-html+="<tr>"
+<table style="width:100%;border-collapse:collapse;">
 
-for c in df.columns:
+<tr style="background:#111;">
 
-    html+=f"<th>{c}</th>"
+<th>Stock</th>
+<th>P2L %</th>
+<th>Price</th>
+<th>%Chg</th>
 
-html+="</tr>"
+</tr>
+
+"""
 
 for _,row in df.iterrows():
 
     html+="<tr>"
 
-    for c in df.columns:
+    stock=row["Stock"]
 
-        val=row[c]
+    p2l=row["P2L %"]
 
-        style=""
+    style=""
 
-        if c=="Stock":
+    if stock in stockstar_list and p2l<-5:
 
-            if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+        style="color:lime;font-weight:bold;animation:flash 1s infinite;"
+        green_trigger=True
 
-                style="color:green;font-weight:bold;animation:flash 1s infinite;"
-                green_trigger=True
+    elif stock in stockstar_list and p2l<-3:
 
-        if isinstance(val,float):
+        style="color:orange;font-weight:bold;"
 
-            val=f"{val:.2f}"
+    elif p2l<-2:
 
-        html+=f"<td style='{style}'>{val}</td>"
+        style="color:hotpink;font-weight:bold;"
+
+    html+=f"<td style='{style}'>{stock}</td>"
+
+    html+=f"<td>{p2l:.2f}</td>"
+
+    html+=f"<td>{row['Price']:.2f}</td>"
+
+    html+=f"<td>{row['%Chg']:.2f}</td>"
 
     html+="</tr>"
 
@@ -248,7 +279,7 @@ html+="</table>"
 st.markdown(html,unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SOUND
+# SOUND ALERT
 
 if sound_alert and green_trigger:
 
@@ -286,11 +317,3 @@ round(df["P2L %"].mean(),2),
 "%"
 
 )
-
-# ---------------------------------------------------
-# REFRESH
-
-if st.button("Refresh"):
-
-    st.cache_data.clear()
-    st.rerun()
