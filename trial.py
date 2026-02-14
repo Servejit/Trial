@@ -1,7 +1,4 @@
-# ---------------------------------------------------
-# INSTALL
 # pip install streamlit yfinance pandas requests
-# ---------------------------------------------------
 
 import streamlit as st
 import yfinance as yf
@@ -21,7 +18,6 @@ CHAT_ID = "5355913841"
 
 st.set_page_config(layout="wide")
 
-# SMALL TITLE
 st.markdown("## 📊 Live Price P2L")
 
 # ---------------------------------------------------
@@ -33,7 +29,6 @@ st.markdown("""
 .block-container
 {
 padding-top:1rem;
-padding-bottom:0rem;
 }
 
 @keyframes flash {
@@ -46,21 +41,25 @@ padding-bottom:0rem;
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# STOCKSTAR INPUT
+# INPUT
 
-colA,colB,colC = st.columns([4,2,2])
+col1,col2,col3 = st.columns([4,2,2])
 
-with colA:
+with col1:
+
     stockstar_input = st.text_input(
         "⭐ StockStar",
         "DLF.NS, CANBK.NS"
     ).upper()
 
-with colB:
+with col2:
+
     sound_alert = st.toggle("🔊 Sound", False)
 
-with colC:
-    telegram_alert = st.toggle("📲 Telegram Alert", False)
+with col3:
+
+    telegram_alert = st.toggle("📲 Telegram", False)
+
 
 stockstar_list = [
 s.strip().replace(".NS","")
@@ -68,7 +67,7 @@ for s in stockstar_input.split(",")
 ]
 
 # ---------------------------------------------------
-# SMALL SOUND UPLOAD
+# SOUND UPLOAD
 
 uploaded_sound = st.file_uploader(
 "",
@@ -82,107 +81,122 @@ DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-previ
 # STOCK LIST
 
 stocks = {
+
 "CANBK.NS":142.93,
 "DLF.NS":646.85,
 "INFY.NS":1377.05,
 "HCLTECH.NS":1465.83,
 "OIL.NS":468.65,
 "PNB.NS":119.90,
+
 }
 
 # ---------------------------------------------------
-# FETCH DATA
+# FETCH FUNCTION
 
 @st.cache_data(ttl=60)
 
 def fetch():
 
-symbols=list(stocks.keys())
+    symbols=list(stocks.keys())
 
-data=yf.download(
-tickers=symbols,
-period="2d",
-interval="1d",
-group_by="ticker",
-progress=False
-)
+    data=yf.download(
 
-rows=[]
+        tickers=symbols,
+        period="2d",
+        interval="1d",
+        group_by="ticker",
+        progress=False
 
-for sym in symbols:
+    )
 
-try:
+    rows=[]
 
-ref=stocks[sym]
+    for sym in symbols:
 
-price=data[sym]["Close"].iloc[-1]
-prev=data[sym]["Close"].iloc[-2]
+        try:
 
-p2l=((price-ref)/ref)*100
-chg=((price-prev)/prev)*100
+            ref=stocks[sym]
 
-rows.append({
+            price=data[sym]["Close"].iloc[-1]
+            prev=data[sym]["Close"].iloc[-2]
 
-"Stock":sym.replace(".NS",""),
-"P2L %":p2l,
-"Price":price,
-"%Chg":chg
+            p2l=((price-ref)/ref)*100
+            chg=((price-prev)/prev)*100
 
-})
+            rows.append({
 
-except:
-pass
+                "Stock":sym.replace(".NS",""),
+                "P2L %":p2l,
+                "Price":price,
+                "%Chg":chg
 
-return pd.DataFrame(rows)
+            })
+
+        except:
+
+            pass
+
+    return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# TELEGRAM FUNCTION
+# TELEGRAM SEND
 
 def send_telegram(msg):
 
-url=f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url=f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-requests.post(url,data={
+    requests.post(
 
-"chat_id":CHAT_ID,
-"text":msg
+        url,
+        data={
 
-})
+            "chat_id":CHAT_ID,
+            "text":msg
+
+        }
+
+    )
 
 # ---------------------------------------------------
-# BACKGROUND ALERT
+# BACKGROUND
 
 def background():
 
-while True:
+    while True:
 
-df=fetch()
+        df=fetch()
 
-for _,row in df.iterrows():
+        for _,row in df.iterrows():
 
-if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+            if row["Stock"] in stockstar_list and row["P2L %"]<-5:
 
-msg=f"""
+                msg=f"""
+
 ALERT
 
 {row['Stock']}
 
 P2L = {row['P2L %']:.2f}%
 Price = {row['Price']:.2f}
+
 """
 
-send_telegram(msg)
+                send_telegram(msg)
 
-time.sleep(60)
+        time.sleep(60)
+
 
 # START THREAD
 
 if telegram_alert:
 
-threading.Thread(
-target=background,
-daemon=True
-).start()
+    threading.Thread(
+
+        target=background,
+        daemon=True
+
+    ).start()
 
 # ---------------------------------------------------
 # DISPLAY
@@ -190,67 +204,61 @@ daemon=True
 df=fetch()
 
 # ---------------------------------------------------
-# HTML TABLE
+# TABLE
 
-def table(df):
+green_trigger=False
 
-html="<table width=100%>"
+html="<table width=100% border=1>"
 
 html+="<tr>"
 
 for c in df.columns:
 
-html+=f"<th>{c}</th>"
+    html+=f"<th>{c}</th>"
 
 html+="</tr>"
-
-green=False
 
 for _,row in df.iterrows():
 
-html+="<tr>"
+    html+="<tr>"
 
-for c in df.columns:
+    for c in df.columns:
 
-val=row[c]
+        val=row[c]
 
-style=""
+        style=""
 
-if c=="Stock":
+        if c=="Stock":
 
-if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+            if row["Stock"] in stockstar_list and row["P2L %"]<-5:
 
-style="color:green;font-weight:bold;animation:flash 1s infinite;"
-green=True
+                style="color:green;font-weight:bold;animation:flash 1s infinite;"
+                green_trigger=True
 
-if isinstance(val,float):
+        if isinstance(val,float):
 
-val=f"{val:.2f}"
+            val=f"{val:.2f}"
 
-html+=f"<td style='{style}'>{val}</td>"
+        html+=f"<td style='{style}'>{val}</td>"
 
-html+="</tr>"
+    html+="</tr>"
 
 html+="</table>"
-
-return html,green
-
-html,green_trigger=table(df)
 
 st.markdown(html,unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SOUND ALERT
+# SOUND
 
 if sound_alert and green_trigger:
 
-if uploaded_sound:
+    if uploaded_sound:
 
-audio=uploaded_sound.read()
+        audio=uploaded_sound.read()
 
-b64=base64.b64encode(audio).decode()
+        b64=base64.b64encode(audio).decode()
 
-st.markdown(f"""
+        st.markdown(f"""
 
 <audio autoplay loop>
 <source src="data:audio/mp3;base64,{b64}">
@@ -258,9 +266,9 @@ st.markdown(f"""
 
 """,unsafe_allow_html=True)
 
-else:
+    else:
 
-st.markdown(f"""
+        st.markdown(f"""
 
 <audio autoplay loop>
 <source src="{DEFAULT_SOUND_URL}">
@@ -269,18 +277,20 @@ st.markdown(f"""
 """,unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# REFRESH BUTTON
-
-if st.button("Refresh"):
-
-st.cache_data.clear()
-st.rerun()
-
-# ---------------------------------------------------
-# AVG
+# AVERAGE
 
 st.write(
+
 "Average P2L:",
 round(df["P2L %"].mean(),2),
 "%"
+
 )
+
+# ---------------------------------------------------
+# REFRESH
+
+if st.button("Refresh"):
+
+    st.cache_data.clear()
+    st.rerun()
