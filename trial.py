@@ -16,87 +16,54 @@ CHAT_ID = "PASTE_CHAT_ID"
 
 # ---------------------------------------------------
 
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="Live P2L", layout="wide")
 
-# ---------------------------------------------------
-# CSS
-
+# FIX SPACING
 st.markdown("""
-
 <style>
 
 .block-container
 {
-padding-top:1rem;
-padding-bottom:0rem;
+padding-top:3rem;
 }
 
-.heading
-{
-background:black;
-color:white;
-padding:6px;
-font-size:18px;
-font-weight:bold;
-}
-
-.upload
-{
-font-size:12px;
-}
-
-.table-container
-{
-overflow-x:auto;
-}
-
-table
-{
-min-width:900px;
-border-collapse:collapse;
-}
-
-th, td
-{
-padding:6px;
-border:1px solid #444;
-text-align:center;
-}
-
-@keyframes flash
-{
-0%{opacity:1;}
-50%{opacity:0.2;}
-100%{opacity:1;}
+@keyframes flash {
+0% {opacity:1;}
+50% {opacity:0.2;}
+100% {opacity:1;}
 }
 
 </style>
-
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# CONTROL ROW
+# HEADING
 
-c1,c2,c3,c4,c5 = st.columns([1,1,1,1,4])
+st.markdown("## 📊 Live Price with P2L")
 
-with c1:
-    refresh = st.button("Refresh")
+# ---------------------------------------------------
+# SINGLE HORIZONTAL CONTROL BAR
 
-with c2:
-    sort = st.button("Sort")
+col1,col2,col3,col4,col5 = st.columns([1,1,1,1,4])
 
-with c3:
-    sound_alert = st.toggle("Sound")
+with col1:
+    refresh = st.button("🔄 Refresh", use_container_width=True)
 
-with c4:
-    telegram_alert = st.toggle("Alert")
+with col2:
+    sort_clicked = st.button("📈 Sort", use_container_width=True)
 
-with c5:
+with col3:
+    sound_alert = st.toggle("🔊 Sound", False)
+
+with col4:
+    telegram_alert = st.toggle("📲 Alert", False)
+
+with col5:
     stockstar_input = st.text_input(
         "StockStar",
-        "DLF.NS, CANBK.NS",
-        label_visibility="collapsed"
+        "DLF.NS, CANBK.NS"
     ).upper()
+
 
 stockstar_list = [
 s.strip().replace(".NS","")
@@ -104,7 +71,7 @@ for s in stockstar_input.split(",")
 ]
 
 # ---------------------------------------------------
-# SMALL UPLOAD
+# SMALL SOUND UPLOAD
 
 uploaded_sound = st.file_uploader(
 "",
@@ -112,23 +79,12 @@ type=["mp3","wav"],
 label_visibility="collapsed"
 )
 
-DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
-
-# ---------------------------------------------------
-# HEADING ABOVE OUTPUT
-
-st.markdown(
-
-'<div class="heading">Live Price with P2L</div>',
-
-unsafe_allow_html=True
-
-)
+DEFAULT_SOUND="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
 # STOCK LIST
 
-stocks = {
+stocks={
 
 "CANBK.NS":142.93,
 "DLF.NS":646.85,
@@ -169,10 +125,6 @@ def fetch():
             price=data[sym]["Close"].iloc[-1]
             prev=data[sym]["Close"].iloc[-2]
 
-            open_p=data[sym]["Open"].iloc[-1]
-            high=data[sym]["High"].iloc[-1]
-            low=data[sym]["Low"].iloc[-1]
-
             p2l=((price-ref)/ref)*100
             chg=((price-prev)/prev)*100
 
@@ -181,10 +133,7 @@ def fetch():
                 "Stock":sym.replace(".NS",""),
                 "P2L %":p2l,
                 "Price":price,
-                "%Chg":chg,
-                "Open":open_p,
-                "High":high,
-                "Low":low
+                "%Chg":chg
 
             })
 
@@ -197,24 +146,21 @@ def fetch():
 # REFRESH
 
 if refresh:
-
     st.cache_data.clear()
     st.rerun()
 
 # ---------------------------------------------------
-# LOAD
+# LOAD DATA
 
 df=fetch()
 
-# ---------------------------------------------------
 # SORT
 
-if sort:
-
+if sort_clicked:
     df=df.sort_values("P2L %",ascending=False)
 
 # ---------------------------------------------------
-# TELEGRAM
+# TELEGRAM ALERT
 
 def send_telegram(msg):
 
@@ -227,8 +173,6 @@ def send_telegram(msg):
 
     })
 
-# ---------------------------------------------------
-# BACKGROUND
 
 def background():
 
@@ -240,11 +184,20 @@ def background():
 
             if row["Stock"] in stockstar_list and row["P2L %"]<-5:
 
-                msg=f"{row['Stock']} Alert P2L {row['P2L %']:.2f}%"
+                msg=f"""
+
+ALERT
+
+{row['Stock']}
+
+P2L: {row['P2L %']:.2f}%
+
+"""
 
                 send_telegram(msg)
 
         time.sleep(60)
+
 
 if telegram_alert:
 
@@ -256,67 +209,65 @@ if telegram_alert:
 # ---------------------------------------------------
 # TABLE
 
-green_trigger=False
+green=False
 
-html='<div class="table-container"><table>'
+html="""
+<table width=100% border=1>
 
-html+="<tr>"
+<tr>
+<th>Stock</th>
+<th>P2L%</th>
+<th>Price</th>
+<th>%Chg</th>
+</tr>
 
-for col in df.columns:
-
-    html+=f"<th>{col}</th>"
-
-html+="</tr>"
+"""
 
 for _,row in df.iterrows():
-
-    html+="<tr>"
 
     stock=row["Stock"]
     p2l=row["P2L %"]
 
-    for col in df.columns:
+    style=""
 
-        value=row[col]
+    if stock in stockstar_list and p2l<-5:
 
-        style=""
+        style="color:lime;font-weight:bold;animation:flash 1s infinite;"
+        green=True
 
-        if col=="Stock":
+    elif stock in stockstar_list and p2l<-3:
 
-            if stock in stockstar_list and p2l<-5:
+        style="color:orange;font-weight:bold;"
 
-                style="color:lime;font-weight:bold;animation:flash 1s infinite;"
-                green_trigger=True
+    elif p2l<-2:
 
-            elif stock in stockstar_list and p2l<-3:
+        style="color:hotpink;font-weight:bold;"
 
-                style="color:orange;font-weight:bold;"
+    html+=f"""
 
-            elif p2l<-2:
+<tr>
 
-                style="color:hotpink;font-weight:bold;"
+<td style='{style}'>{stock}</td>
+<td>{p2l:.2f}</td>
+<td>{row['Price']:.2f}</td>
+<td>{row['%Chg']:.2f}</td>
 
-        if isinstance(value,float):
+</tr>
 
-            value=f"{value:.2f}"
+"""
 
-        html+=f"<td style='{style}'>{value}</td>"
-
-    html+="</tr>"
-
-html+="</table></div>"
+html+="</table>"
 
 st.markdown(html,unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SOUND
+# SOUND ALERT
 
-if sound_alert and green_trigger:
+if sound_alert and green:
 
     if uploaded_sound:
 
         audio=uploaded_sound.read()
-
         b64=base64.b64encode(audio).decode()
 
         st.markdown(f"""
@@ -332,13 +283,13 @@ if sound_alert and green_trigger:
         st.markdown(f"""
 
 <audio autoplay loop>
-<source src="{DEFAULT_SOUND_URL}">
+<source src="{DEFAULT_SOUND}">
 </audio>
 
 """,unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# AVG
+# AVERAGE
 
 st.write(
 
