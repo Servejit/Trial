@@ -1,6 +1,3 @@
-Streamlit Flashing Code (Tgm alerts/user id) v3
-
-
 # ---------------------------------------------------
 # INSTALL
 # pip install streamlit yfinance pandas requests bcrypt PyGithub
