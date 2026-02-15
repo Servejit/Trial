@@ -1,6 +1,6 @@
 # ---------------------------------------------------
 # INSTALL (Run once in terminal)
-# pip install streamlit yfinance pandas requests
+# pip install streamlit yfinance pandas requests pytz
 # ---------------------------------------------------
 
 import streamlit as st
@@ -8,6 +8,8 @@ import yfinance as yf
 import pandas as pd
 import base64
 import requests
+from datetime import datetime
+import pytz
 
 st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
@@ -175,6 +177,8 @@ if sort_clicked:
 
 green_trigger = False
 trigger_stock = ""
+trigger_price = 0
+trigger_p2l = 0
 
 for _, row in df.iterrows():
 
@@ -182,6 +186,9 @@ for _, row in df.iterrows():
 
         green_trigger = True
         trigger_stock = row["Stock"]
+        trigger_price = row["Price"]
+        trigger_p2l = row["P2L %"]
+
         break
 
 # ---------------------------------------------------
@@ -194,18 +201,21 @@ if not green_trigger:
     st.session_state.alert_played = False
 
 # ---------------------------------------------------
-# TELEGRAM ALERT (ONCE PER TRIGGER)
+# TELEGRAM ALERT (UPGRADED)
 
 if telegram_alert and green_trigger and not st.session_state.alert_played:
 
-    message = f"""
+    ist = pytz.timezone('Asia/Kolkata')
+    time_now = datetime.now(ist).strftime("%I:%M:%S %p")
 
-GREEN FLASH ALERT
+    message = f"""
+🟢 GREEN FLASH ALERT
 
 Stock: {trigger_stock}
+Price: ₹{trigger_price:.2f}
+P2L: {trigger_p2l:.2f}%
 
-P2L below -5%
-
+Time: {time_now}
 """
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -218,64 +228,7 @@ P2L below -5%
     })
 
 # ---------------------------------------------------
-# HTML TABLE
-
-def generate_html_table(dataframe):
-
-    html = """
-    <table style="width:100%; border-collapse: collapse;">
-    <tr style="background-color:#111;">
-    """
-
-    for col in dataframe.columns:
-        html += f"<th style='padding:8px; border:1px solid #444;'>{col}</th>"
-
-    html += "</tr>"
-
-    for _, row in dataframe.iterrows():
-
-        html += "<tr>"
-
-        for col in dataframe.columns:
-
-            value = row[col]
-
-            style = "padding:6px; border:1px solid #444; text-align:center;"
-
-            if col == "Stock":
-
-                if row["Stock"] in stockstar_list and row["P2L %"] < -5:
-                    style += "color:green; font-weight:bold; animation: flash 1s infinite;"
-
-                elif row["Stock"] in stockstar_list and row["P2L %"] < -3:
-                    style += "color:orange; font-weight:bold;"
-
-                elif row["P2L %"] < -2:
-                    style += "color:hotpink; font-weight:bold;"
-
-            if col in ["P2L %", "% Chg"]:
-
-                if value > 0:
-                    style += "color:green; font-weight:bold;"
-
-                elif value < 0:
-                    style += "color:red; font-weight:bold;"
-
-            if isinstance(value, float):
-                value = f"{value:.2f}"
-
-            html += f"<td style='{style}'>{value}</td>"
-
-        html += "</tr>"
-
-    html += "</table>"
-
-    return html
-
-st.markdown(generate_html_table(df), unsafe_allow_html=True)
-
-# ---------------------------------------------------
-# SOUND ALERT (ONCE PER TRIGGER)
+# SOUND ALERT (UNCHANGED)
 
 if sound_alert and green_trigger and not st.session_state.alert_played:
 
@@ -285,11 +238,10 @@ if sound_alert and green_trigger and not st.session_state.alert_played:
 
         audio_bytes = uploaded_sound.read()
         b64 = base64.b64encode(audio_bytes).decode()
-        file_type = uploaded_sound.type
 
         st.markdown(f"""
         <audio autoplay>
-            <source src="data:{file_type};base64,{b64}">
+            <source src="data:{uploaded_sound.type};base64,{b64}">
         </audio>
         """, unsafe_allow_html=True)
 
@@ -300,6 +252,11 @@ if sound_alert and green_trigger and not st.session_state.alert_played:
             <source src="{DEFAULT_SOUND_URL}">
         </audio>
         """, unsafe_allow_html=True)
+
+# ---------------------------------------------------
+# TABLE
+
+st.dataframe(df, use_container_width=True)
 
 # ---------------------------------------------------
 # AVERAGE
