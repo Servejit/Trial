@@ -11,49 +11,25 @@ import bcrypt
 import json
 import random
 import time
-from datetime import datetime
 from github import Github
 
 # ---------------------------------------------------
-# CONFIGURATION (Using Secrets for Security)
-# ---------------------------------------------------
+# TELEGRAM SETTINGS
+BOT_TOKEN = "PASTE_YOUR_BOT_TOKEN"
+CHAT_ID = "PASTE_YOUR_CHAT_ID"
 
-# Set these in your Streamlit Cloud "Secrets" panel
-try:
-    BOT_TOKEN = st.secrets["BOT_TOKEN"]
-    CHAT_ID = st.secrets["CHAT_ID"]
-    GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-    REPO_NAME = st.secrets["REPO_NAME"]  # e.g., "yourname/your-repo"
-    FILE_PATH = "users.json"
-except Exception:
-    st.error("Please configure Secrets (BOT_TOKEN, CHAT_ID, GITHUB_TOKEN, REPO_NAME) in Streamlit.")
-    st.stop()
+# ---------------------------------------------------
+# GITHUB SETTINGS
+GITHUB_TOKEN = "PASTE_GITHUB_TOKEN"
+REPO_NAME = "USERNAME/REPO"
+FILE_PATH = "users.json"
 
 # ---------------------------------------------------
 # PAGE CONFIG
 st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 
 # ---------------------------------------------------
-# SECURITY FUNCTIONS
-
-def hash_password(password):
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-def check_password(password, hashed):
-    return bcrypt.checkpw(password.encode(), hashed.encode())
-
-def send_otp():
-    otp = str(random.randint(100000, 999999))
-    st.session_state.reset_otp = otp
-    st.session_state.otp_time = time.time()
-    requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        data={"chat_id": CHAT_ID, "text": f"🔐 Password Reset OTP: {otp}"}
-    )
-
-# ---------------------------------------------------
-# DATA PERSISTENCE (GITHUB)
-
+# LOAD USERS
 def load_users():
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(REPO_NAME)
@@ -61,10 +37,10 @@ def load_users():
         file = repo.get_contents(FILE_PATH)
         return json.loads(file.decoded_content.decode())
     except:
-        # Default admin if file doesn't exist
-        # Password: admin
-        return {"admin": {"password": hash_password("admin"), "role": "admin"}}
+        return {}
 
+# ---------------------------------------------------
+# SAVE USERS
 def save_users(users):
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(REPO_NAME)
@@ -76,14 +52,41 @@ def save_users(users):
         repo.create_file(FILE_PATH, "create users", content)
 
 # ---------------------------------------------------
-# UI COMPONENTS
+# PASSWORD FUNCTIONS
+def hash_password(password):
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
+def check_password(password, hashed):
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
+# ---------------------------------------------------
+# OTP FUNCTION
+def send_otp():
+    otp = str(random.randint(100000, 999999))
+    st.session_state.reset_otp = otp
+    st.session_state.otp_time = time.time()
+    requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+        data={"chat_id": CHAT_ID, "text": f"🔐 Password Reset OTP: {otp}"}
+    )
+
+# ---------------------------------------------------
+# SESSION STATE
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user" not in st.session_state:
+    st.session_state.user = ""
+if "role" not in st.session_state:
+    st.session_state.role = ""
+
+# ---------------------------------------------------
+# LOGIN
 def login():
     st.title("🔐 Login")
     users = load_users()
     username = st.text_input("User ID")
     password = st.text_input("Password", type="password")
-    
+
     if st.button("Login"):
         if username in users and check_password(password, users[username]["password"]):
             st.session_state.logged_in = True
@@ -95,7 +98,7 @@ def login():
 
     st.markdown("---")
     st.subheader("Forgot Password")
-    reset_user = st.text_input("User ID for Reset", key="reset_user")
+    reset_user = st.text_input("User ID", key="reset_user")
     if st.button("Send OTP"):
         if reset_user in users:
             send_otp()
@@ -117,110 +120,105 @@ def login():
             save_users(users)
             st.success("Password Reset Successful")
 
+# ---------------------------------------------------
+# CHANGE PASSWORD
 def change_password():
-    with st.expander("🔑 Change My Password"):
-        users = load_users()
-        current = st.text_input("Current Password", type="password", key="curr_p")
-        new = st.text_input("New Password", type="password", key="new_p")
-        confirm = st.text_input("Confirm Password", type="password", key="conf_p")
-        if st.button("Update Password"):
-            if not check_password(current, users[st.session_state.user]["password"]):
-                st.error("Wrong Current Password")
-            elif new != confirm:
-                st.error("Passwords do not match")
-            else:
-                users[st.session_state.user]["password"] = hash_password(new)
-                save_users(users)
-                st.success("Updated successfully")
-
-def admin_panel():
-    st.markdown("---")
-    st.subheader("🛠️ Admin Panel")
+    st.subheader("Change Password")
     users = load_users()
-    
-    # Display Users
-    st.write("**Current Users:**")
-    st.table(pd.DataFrame([{"User ID": k, "Role": v["role"]} for k, v in users.items()]))
+    current = st.text_input("Current Password", type="password")
+    new = st.text_input("New Password", type="password")
+    confirm = st.text_input("Confirm Password", type="password")
 
-    # Add User
-    col1, col2 = st.columns(2)
-    with col1:
-        new_user = st.text_input("New User ID")
-        new_pass = st.text_input("Initial Password", type="password")
-        if st.button("Add User"):
-            if new_user and new_pass:
-                users[new_user] = {"password": hash_password(new_pass), "role": "user"}
-                save_users(users)
-                st.success(f"Added {new_user}")
-                st.rerun()
+    if st.button("Update Password"):
+        if not check_password(current, users[st.session_state.user]["password"]):
+            st.error("Wrong Password")
+        elif new != confirm:
+            st.error("Mismatch")
+        else:
+            users[st.session_state.user]["password"] = hash_password(new)
+            save_users(users)
+            st.success("Updated")
 
-    # Delete User
-    with col2:
-        delete = st.selectbox("Select User to Delete", [u for u in users.keys() if u != 'admin'])
-        confirm = st.checkbox("I am sure")
-        if st.button("Delete User"):
-            if confirm:
-                del users[delete]
-                save_users(users)
-                st.success("Deleted")
-                st.rerun()
+# ---------------------------------------------------
+# ADMIN PANEL
+def admin_panel():
+    st.subheader("Admin Panel")
+    users = load_users()
+    st.table(list(users.keys()))
+
+    # ADD USER
+    new_user = st.text_input("New User")
+    new_pass = st.text_input("New Password", type="password")
+    if st.button("Add User"):
+        users[new_user] = {"password": hash_password(new_pass), "role": "user"}
+        save_users(users)
+        st.success("User Added")
+        st.rerun()
+
+    # DELETE USER SAFE
+    delete = st.selectbox("Delete User", list(users.keys()))
+    confirm = st.checkbox("Confirm Delete")
+    if st.button("Delete"):
+        if delete == "admin":
+            st.error("Cannot delete admin")
+        elif confirm:
+            del users[delete]
+            save_users(users)
+            st.success("Deleted")
+            st.rerun()
 
 # ---------------------------------------------------
 # STOCK DASHBOARD
-
 def dashboard():
     st.title("📊 Live Prices with P2L")
-    
-    stocks = {"CANBK.NS": 142.93, "DLF.NS": 646.85}
 
+    # STOCKSTAR INPUT
+    stockstar_input = st.text_input("⭐ StockStar", "DLF.NS, CANBK.NS").upper()
+    stockstar_list = [s.replace(".NS","").strip() for s in stockstar_input.split(",")]
+
+    # SOUND & TELEGRAM TOGGLE
+    sound = st.toggle("Sound Alert")
+    telegram = st.toggle("Telegram Alert")
+
+    # STOCK LIST
+    stocks = {"CANBK.NS":142.93, "DLF.NS":646.85}
+
+    # FETCH DATA
     @st.cache_data(ttl=60)
     def fetch():
-        data = yf.download(list(stocks.keys()), period="2d", interval="1d", group_by="ticker", progress=False)
-        rows = []
+        data = yf.download(list(stocks.keys()), period="2d", interval="1d", group_by="ticker")
+        rows=[]
         for s in stocks:
             price = data[s]["Close"].iloc[-1]
-            p2l = ((price - stocks[s]) / stocks[s]) * 100
-            rows.append({
-                "Stock": s.replace(".NS",""),
-                "Price": round(price, 2),
-                "Buy Price": stocks[s],
-                "P2L %": round(p2l, 2)
-            })
+            p2l = ((price-stocks[s])/stocks[s])*100
+            rows.append({"Stock": s.replace(".NS",""), "Price": price, "P2L %": p2l})
         return pd.DataFrame(rows)
 
-    df = fetch()
-    
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🔄 Refresh Data"):
+        if st.button("Refresh"):
             st.cache_data.clear()
             st.rerun()
+    with col2:
+        sort = st.button("Sort")
+
+    df = fetch()
+    if sort:
+        df = df.sort_values("P2L %")
     
-    # Display table
-    st.table(df)
-    
-    avg_p2l = df["P2L %"].mean()
-    st.metric("Total Average P2L", f"{avg_p2l:.2f}%")
+    st.dataframe(df)
+    st.write("Average:", round(df["P2L %"].mean(),2))
 
 # ---------------------------------------------------
-# MAIN EXECUTION FLOW
-
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
+# MAIN
 if not st.session_state.logged_in:
     login()
 else:
-    # Sidebar
-    st.sidebar.title(f"👤 {st.session_state.user}")
-    st.sidebar.write(f"Role: {st.session_state.role}")
+    st.sidebar.write("Welcome", st.session_state.user)
     if st.sidebar.button("Logout"):
-        st.session_state.logged_in = False
+        st.session_state.logged_in=False
         st.rerun()
-
-    # Layout
-    dashboard()
     change_password()
-    
-    if st.session_state.role == "admin":
+    if st.session_state.role=="admin":
         admin_panel()
+    dashboard()
