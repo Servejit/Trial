@@ -1,6 +1,6 @@
 # ---------------------------------------------------
 # INSTALL
-# pip install streamlit yfinance pandas requests bcrypt
+# pip install streamlit yfinance pandas requests bcrypt PyGithub
 # ---------------------------------------------------
 
 import streamlit as st
@@ -10,173 +10,10 @@ import base64
 import requests
 import bcrypt
 import json
-import os
+import random
+import time
 from datetime import datetime
-
-
-# ===================================================
-# LOGIN SYSTEM (NEW ADDITION)
-# ===================================================
-
-USER_FILE = "users.json"
-
-
-def hash_password(password):
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-
-def check_password(password, hashed):
-
-    if isinstance(hashed, str):
-        hashed = hashed.encode()
-
-    return bcrypt.checkpw(password.encode(), hashed)
-
-
-def load_users():
-
-    if not os.path.exists(USER_FILE):
-
-        users = {
-            "admin": {
-                "password": hash_password("admin123"),
-                "role": "admin"
-            }
-        }
-
-        with open(USER_FILE, "w") as f:
-            json.dump(users, f)
-
-    with open(USER_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_users(users):
-
-    with open(USER_FILE, "w") as f:
-        json.dump(users, f)
-
-
-if "logged" not in st.session_state:
-    st.session_state.logged = False
-
-if "user" not in st.session_state:
-    st.session_state.user = ""
-
-if "role" not in st.session_state:
-    st.session_state.role = ""
-
-
-def login_page():
-
-    st.title("🔐 Login Required")
-
-    u = st.text_input("User ID")
-    p = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-
-        users = load_users()
-
-        if u in users and check_password(p, users[u]["password"]):
-
-            st.session_state.logged = True
-            st.session_state.user = u
-            st.session_state.role = users[u]["role"]
-
-            st.rerun()
-
-        else:
-
-            st.error("Invalid Login")
-
-
-def change_password():
-
-    st.sidebar.subheader("🔑 Change Password")
-
-    c = st.sidebar.text_input("Current", type="password")
-    n = st.sidebar.text_input("New", type="password")
-    cf = st.sidebar.text_input("Confirm", type="password")
-
-    if st.sidebar.button("Update Password"):
-
-        users = load_users()
-
-        if check_password(c, users[st.session_state.user]["password"]):
-
-            if n == cf:
-
-                users[st.session_state.user]["password"] = hash_password(n)
-
-                save_users(users)
-
-                st.sidebar.success("Updated")
-
-            else:
-                st.sidebar.error("Mismatch")
-
-        else:
-            st.sidebar.error("Wrong Password")
-
-
-def admin_panel():
-
-    if st.session_state.role != "admin":
-        return
-
-    st.sidebar.subheader("👨‍💼 Admin Panel")
-
-    nu = st.sidebar.text_input("New User")
-
-    np = st.sidebar.text_input("New Password", type="password")
-
-    if st.sidebar.button("Add User"):
-
-        users = load_users()
-
-        users[nu] = {
-            "password": hash_password(np),
-            "role": "user"
-        }
-
-        save_users(users)
-
-        st.sidebar.success("User Added")
-
-
-# ===================================================
-# STOP APP IF NOT LOGGED
-# ===================================================
-
-if not st.session_state.logged:
-
-    login_page()
-
-    st.stop()
-
-
-# Sidebar welcome
-st.sidebar.write(f"Welcome **{st.session_state.user}**")
-
-if st.sidebar.button("Logout"):
-
-    st.session_state.logged = False
-    st.rerun()
-
-change_password()
-
-admin_panel()
-
-
-# ===================================================
-# YOUR ORIGINAL CODE STARTS (NO CHANGE BELOW)
-# ===================================================
-
-
-st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
-st.title("📊 Live Prices with P2L")
-
+from github import Github
 
 # ---------------------------------------------------
 # TELEGRAM SETTINGS
@@ -184,318 +21,410 @@ st.title("📊 Live Prices with P2L")
 BOT_TOKEN = "PASTE_YOUR_BOT_TOKEN"
 CHAT_ID = "PASTE_YOUR_CHAT_ID"
 
+# ---------------------------------------------------
+# GITHUB SETTINGS
+
+GITHUB_TOKEN = "PASTE_GITHUB_TOKEN"
+REPO_NAME = "USERNAME/REPO"
+FILE_PATH = "users.json"
 
 # ---------------------------------------------------
-# FLASHING CSS
+# PAGE CONFIG
 
-st.markdown("""
-<style>
-@keyframes flash {
-    0% { opacity: 1; }
-    50% { opacity: 0.2; }
-    100% { opacity: 1; }
-}
-table {
-    background-color:#0e1117;
-    color:white;
-}
-</style>
-""", unsafe_allow_html=True)
-
+st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 
 # ---------------------------------------------------
-# STOCKSTAR INPUT
+# LOAD USERS
 
-stockstar_input = st.text_input(
-    "⭐ StockStar (Comma Separated)",
-    "DLF.NS, CANBK.NS"
-).upper()
+def load_users():
 
+    g = Github(GITHUB_TOKEN)
+    repo = g.get_repo(REPO_NAME)
 
-stockstar_list = [
-    s.strip().replace(".NS", "")
-    for s in stockstar_input.split(",")
-    if s.strip() != ""
-]
+    try:
 
+        file = repo.get_contents(FILE_PATH)
+        return json.loads(file.decoded_content.decode())
 
-# ---------------------------------------------------
-# SOUND SETTINGS
+    except:
 
-sound_alert = st.toggle("🔊 Enable Alert Sound for -5% Green Stocks", value=False)
-
+        return {}
 
 # ---------------------------------------------------
-# TELEGRAM ALERT TOGGLE
+# SAVE USERS
 
-telegram_alert = st.toggle("📲 Enable Telegram Alert for Green Flashing", value=False)
+def save_users(users):
 
+    g = Github(GITHUB_TOKEN)
+    repo = g.get_repo(REPO_NAME)
 
-# ---------------------------------------------------
-# SOUND UPLOAD
+    content = json.dumps(users, indent=4)
 
-st.markdown("### 🎵 Alert Sound Settings")
+    try:
 
+        file = repo.get_contents(FILE_PATH)
 
-uploaded_sound = st.file_uploader(
-    "Upload Your Custom Sound (.mp3 or .wav)",
-    type=["mp3", "wav"]
-)
+        repo.update_file(
+            FILE_PATH,
+            "update users",
+            content,
+            file.sha
+        )
 
+    except:
 
-DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
-
-
-# ---------------------------------------------------
-# STOCK LIST
-
-stocks = {
-    "CANBK.NS": 142.93,
-    "CHOLAFIN.NS": 1690.51,
-    "COALINDIA.NS": 414.07,
-    "DLF.NS": 646.85,
-    "HCLTECH.NS": 1465.83,
-    "IDFCFIRSTB.NS": 80.84,
-    "INFY.NS": 1377.05,
-    "MPHASIS.NS": 2445.51,
-    "NHPC.NS": 75.78,
-    "OIL.NS": 468.65,
-    "PAGEIND.NS": 33501.65,
-    "PERSISTENT.NS": 5417.42,
-    "PNB.NS": 119.90,
-}
-
+        repo.create_file(
+            FILE_PATH,
+            "create users",
+            content
+        )
 
 # ---------------------------------------------------
-# FETCH DATA
+# PASSWORD FUNCTIONS
 
-@st.cache_data(ttl=60)
-def fetch_data():
+def hash_password(password):
 
-    symbols = list(stocks.keys())
+    return bcrypt.hashpw(
+        password.encode(),
+        bcrypt.gensalt()
+    ).decode()
 
-    data = yf.download(
-        tickers=symbols,
-        period="2d",
-        interval="1d",
-        group_by="ticker",
-        progress=False,
-        threads=True
+
+def check_password(password, hashed):
+
+    return bcrypt.checkpw(
+        password.encode(),
+        hashed.encode()
     )
 
-    rows = []
+# ---------------------------------------------------
+# OTP FUNCTION
 
-    for sym in symbols:
+def send_otp():
 
-        try:
+    otp = str(random.randint(100000, 999999))
 
-            ref_low = stocks[sym]
+    st.session_state.reset_otp = otp
 
-            price = data[sym]["Close"].iloc[-1]
-            prev_close = data[sym]["Close"].iloc[-2]
-            open_p = data[sym]["Open"].iloc[-1]
-            high = data[sym]["High"].iloc[-1]
-            low = data[sym]["Low"].iloc[-1]
+    st.session_state.otp_time = time.time()
 
-            p2l = ((price - ref_low) / ref_low) * 100
-            pct_chg = ((price - prev_close) / prev_close) * 100
+    requests.post(
 
-            rows.append({
-                "Stock": sym.replace(".NS", ""),
-                "P2L %": p2l,
-                "Price": price,
-                "% Chg": pct_chg,
-                "Low Price": ref_low,
-                "Open": open_p,
-                "High": high,
-                "Low": low
-            })
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
 
-        except:
-            pass
-
-    return pd.DataFrame(rows)
-
+        data={
+            "chat_id": CHAT_ID,
+            "text": f"🔐 Password Reset OTP: {otp}"
+        }
+    )
 
 # ---------------------------------------------------
-# BUTTONS
+# SESSION STATE
 
-col1, col2 = st.columns(2)
+if "logged_in" not in st.session_state:
 
-with col1:
-    if st.button("🔄 Refresh"):
-        st.cache_data.clear()
+    st.session_state.logged_in = False
+
+if "user" not in st.session_state:
+
+    st.session_state.user = ""
+
+if "role" not in st.session_state:
+
+    st.session_state.role = ""
+
+# ---------------------------------------------------
+# LOGIN
+
+def login():
+
+    st.title("🔐 Login")
+
+    users = load_users()
+
+    username = st.text_input("User ID")
+
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+
+        if username in users and check_password(password, users[username]["password"]):
+
+            st.session_state.logged_in = True
+            st.session_state.user = username
+            st.session_state.role = users[username]["role"]
+
+            st.rerun()
+
+        else:
+
+            st.error("Invalid Login")
+
+# ---------------------------------------------------
+# OTP RESET
+
+    st.markdown("---")
+    st.subheader("Forgot Password")
+
+    reset_user = st.text_input("User ID", key="reset_user")
+
+    if st.button("Send OTP"):
+
+        if reset_user in users:
+
+            send_otp()
+
+            st.success("OTP sent to Telegram")
+
+        else:
+
+            st.error("User not found")
+
+    otp = st.text_input("Enter OTP")
+
+    new_pass = st.text_input("New Password", type="password")
+
+    if st.button("Reset Password"):
+
+        if "reset_otp" not in st.session_state:
+
+            st.error("Send OTP first")
+
+        elif time.time() - st.session_state.otp_time > 300:
+
+            st.error("OTP expired")
+
+        elif otp != st.session_state.reset_otp:
+
+            st.error("Wrong OTP")
+
+        else:
+
+            users[reset_user]["password"] = hash_password(new_pass)
+
+            save_users(users)
+
+            st.success("Password Reset Successful")
+
+# ---------------------------------------------------
+# CHANGE PASSWORD
+
+def change_password():
+
+    st.subheader("Change Password")
+
+    users = load_users()
+
+    current = st.text_input("Current Password", type="password")
+
+    new = st.text_input("New Password", type="password")
+
+    confirm = st.text_input("Confirm Password", type="password")
+
+    if st.button("Update Password"):
+
+        if not check_password(current, users[st.session_state.user]["password"]):
+
+            st.error("Wrong Password")
+
+        elif new != confirm:
+
+            st.error("Mismatch")
+
+        else:
+
+            users[st.session_state.user]["password"] = hash_password(new)
+
+            save_users(users)
+
+            st.success("Updated")
+
+# ---------------------------------------------------
+# ADMIN PANEL
+
+def admin_panel():
+
+    st.subheader("Admin Panel")
+
+    users = load_users()
+
+    st.table(list(users.keys()))
+
+# ADD USER
+
+    new_user = st.text_input("New User")
+
+    new_pass = st.text_input("New Password", type="password")
+
+    if st.button("Add User"):
+
+        users[new_user] = {
+
+            "password": hash_password(new_pass),
+
+            "role": "user"
+        }
+
+        save_users(users)
+
+        st.success("User Added")
+
         st.rerun()
 
-with col2:
-    sort_clicked = st.button("📈 Sort by P2L")
+# DELETE USER SAFE
 
+    delete = st.selectbox("Delete User", list(users.keys()))
 
-# ---------------------------------------------------
-# LOAD DATA
+    confirm = st.checkbox("Confirm Delete")
 
-df = fetch_data()
+    if st.button("Delete"):
 
-if df.empty:
-    st.error("⚠️ No data received from Yahoo Finance.")
-    st.stop()
+        if delete == "admin":
 
+            st.error("Cannot delete admin")
 
-numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
+        elif confirm:
 
-for col in numeric_cols:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
+            del users[delete]
 
+            save_users(users)
 
-if sort_clicked:
-    df = df.sort_values("P2L %", ascending=False)
+            st.success("Deleted")
 
+            st.rerun()
 
 # ---------------------------------------------------
-# GREEN TRIGGER CHECK
+# STOCK DASHBOARD
 
-green_trigger = False
-trigger_stock = ""
-trigger_price = 0
-trigger_p2l = 0
+def dashboard():
 
-for _, row in df.iterrows():
+    st.title("📊 Live Prices with P2L")
 
-    if row["Stock"] in stockstar_list and row["P2L %"] < -5:
+# STOCKSTAR
 
-        green_trigger = True
-        trigger_stock = row["Stock"]
-        trigger_price = row["Price"]
-        trigger_p2l = row["P2L %"]
-        break
+    stockstar_input = st.text_input(
+        "⭐ StockStar",
+        "DLF.NS, CANBK.NS"
+    ).upper()
 
+    stockstar_list = [
 
-# ---------------------------------------------------
-# ALERT MEMORY STATE
+        s.replace(".NS","").strip()
 
-if "alert_played" not in st.session_state:
-    st.session_state.alert_played = False
+        for s in stockstar_input.split(",")
+    ]
 
-if not green_trigger:
-    st.session_state.alert_played = False
+# SOUND
 
+    sound = st.toggle("Sound Alert")
 
-# ---------------------------------------------------
-# TELEGRAM ALERT
+# TELEGRAM
 
-if telegram_alert and green_trigger and not st.session_state.alert_played:
+    telegram = st.toggle("Telegram Alert")
 
-    current_time = datetime.now().strftime("%I:%M:%S %p")
+# STOCK LIST
 
-    message = f"""
-🟢 GREEN FLASH ALERT
+    stocks = {
 
-Stock: {trigger_stock}
-Price: ₹{trigger_price:.2f}
-P2L: {trigger_p2l:.2f}%
+        "CANBK.NS":142.93,
+        "DLF.NS":646.85
 
-Time: {current_time}
-"""
+    }
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+# FETCH
 
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": message
-    })
+    @st.cache_data(ttl=60)
+    def fetch():
 
+        data = yf.download(
 
-# ---------------------------------------------------
-# HTML TABLE (UNCHANGED)
+            list(stocks.keys()),
+            period="2d",
+            interval="1d",
+            group_by="ticker"
+        )
 
-def generate_html_table(dataframe):
+        rows=[]
 
-    html = """
-    <table style="width:100%; border-collapse: collapse;">
-    <tr style="background-color:#111;">
-    """
+        for s in stocks:
 
-    for col in dataframe.columns:
-        html += f"<th style='padding:8px; border:1px solid #444;'>{col}</th>"
+            price=data[s]["Close"].iloc[-1]
 
-    html += "</tr>"
+            p2l=((price-stocks[s])/stocks[s])*100
 
-    for _, row in dataframe.iterrows():
+            rows.append({
 
-        html += "<tr>"
+                "Stock":s.replace(".NS",""),
+                "Price":price,
+                "P2L %":p2l
+            })
 
-        for col in dataframe.columns:
+        return pd.DataFrame(rows)
 
-            value = row[col]
-            style = "padding:6px; border:1px solid #444; text-align:center;"
+# BUTTON
 
-            if col == "Stock":
+    col1,col2=st.columns(2)
 
-                if row["Stock"] in stockstar_list and row["P2L %"] < -5:
-                    style += "color:green; font-weight:bold; animation: flash 1s infinite;"
+    with col1:
 
-                elif row["Stock"] in stockstar_list and row["P2L %"] < -3:
-                    style += "color:orange; font-weight:bold;"
+        if st.button("Refresh"):
 
-                elif row["P2L %"] < -2:
-                    style += "color:hotpink; font-weight:bold;"
+            st.cache_data.clear()
 
-            if col in ["P2L %", "% Chg"]:
+            st.rerun()
 
-                if value > 0:
-                    style += "color:green; font-weight:bold;"
+    with col2:
 
-                elif value < 0:
-                    style += "color:red; font-weight:bold;"
+        sort=st.button("Sort")
 
-            if isinstance(value, float):
-                value = f"{value:.2f}"
+# LOAD
 
-            html += f"<td style='{style}'>{value}</td>"
+    df=fetch()
 
-        html += "</tr>"
+    if sort:
 
-    html += "</table>"
+        df=df.sort_values("P2L %")
 
-    return html
+# SHOW
 
+    st.dataframe(df)
 
-st.markdown(generate_html_table(df), unsafe_allow_html=True)
+# AVG
 
+    st.write(
+
+        "Average:",
+
+        round(df["P2L %"].mean(),2)
+
+    )
 
 # ---------------------------------------------------
-# SOUND ALERT
+# MAIN
 
-if sound_alert and green_trigger and not st.session_state.alert_played:
+if not st.session_state.logged_in:
 
-    st.session_state.alert_played = True
+    login()
 
-    if uploaded_sound is not None:
+else:
 
-        audio_bytes = uploaded_sound.read()
-        b64 = base64.b64encode(audio_bytes).decode()
-        file_type = uploaded_sound.type
+    st.sidebar.write(
 
-        st.markdown(f"""
-        <audio autoplay>
-            <source src="data:{file_type};base64,{b64}">
-        </audio>
-        """, unsafe_allow_html=True)
+        "Welcome",
 
-    else:
+        st.session_state.user
+    )
 
-        st.markdown(f"""
-        <audio autoplay>
-            <source src="{DEFAULT_SOUND_URL}">
-        </audio>
-        """, unsafe_allow_html=True)
+    if st.sidebar.button("Logout"):
 
+        st.session_state.logged_in=False
 
-# ---------------------------------------------------
-# AVERAGE
+        st.rerun()
 
-average_p2l = df["P2L %"].mean()
+    change_password()
 
-st.markdown(
-    f"### 📊 Average P2L of All Stocks is **{average_p2l:.2f}%**"
-)
+    if st.session_state.role=="admin":
+
+        admin_panel()
+
+    dashboard()
