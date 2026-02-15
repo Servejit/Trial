@@ -55,7 +55,7 @@ stockstar_list = [
 sound_alert = st.toggle("🔊 Enable Alert Sound for -5% Green Stocks", value=False)
 
 # ---------------------------------------------------
-# TELEGRAM ALERT TOGGLE (NEW)
+# TELEGRAM ALERT TOGGLE
 
 telegram_alert = st.toggle("📲 Enable Telegram Alert for Green Flashing", value=False)
 
@@ -171,7 +171,7 @@ if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# CHECK GREEN FLASH CONDITION
+# GREEN TRIGGER CHECK
 
 green_trigger = False
 trigger_stock = ""
@@ -182,15 +182,24 @@ for _, row in df.iterrows():
 
         green_trigger = True
         trigger_stock = row["Stock"]
-
         break
 
 # ---------------------------------------------------
-# TELEGRAM ALERT SEND
+# ALERT MEMORY STATE
 
-if telegram_alert and green_trigger:
+if "alert_played" not in st.session_state:
+    st.session_state.alert_played = False
+
+if not green_trigger:
+    st.session_state.alert_played = False
+
+# ---------------------------------------------------
+# TELEGRAM ALERT (ONCE PER TRIGGER)
+
+if telegram_alert and green_trigger and not st.session_state.alert_played:
 
     message = f"""
+
 GREEN FLASH ALERT
 
 Stock: {trigger_stock}
@@ -209,7 +218,7 @@ P2L below -5%
     })
 
 # ---------------------------------------------------
-# GENERATE HTML TABLE
+# HTML TABLE
 
 def generate_html_table(dataframe):
 
@@ -236,15 +245,12 @@ def generate_html_table(dataframe):
             if col == "Stock":
 
                 if row["Stock"] in stockstar_list and row["P2L %"] < -5:
-
                     style += "color:green; font-weight:bold; animation: flash 1s infinite;"
 
                 elif row["Stock"] in stockstar_list and row["P2L %"] < -3:
-
                     style += "color:orange; font-weight:bold;"
 
                 elif row["P2L %"] < -2:
-
                     style += "color:hotpink; font-weight:bold;"
 
             if col in ["P2L %", "% Chg"]:
@@ -266,13 +272,14 @@ def generate_html_table(dataframe):
 
     return html
 
-
 st.markdown(generate_html_table(df), unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SOUND ALERT
+# SOUND ALERT (ONCE PER TRIGGER)
 
-if sound_alert and green_trigger:
+if sound_alert and green_trigger and not st.session_state.alert_played:
+
+    st.session_state.alert_played = True
 
     if uploaded_sound is not None:
 
@@ -281,16 +288,16 @@ if sound_alert and green_trigger:
         file_type = uploaded_sound.type
 
         st.markdown(f"""
-        <audio autoplay loop>
-            <source src="data:{file_type};base64,{b64}" type="{file_type}">
+        <audio autoplay>
+            <source src="data:{file_type};base64,{b64}">
         </audio>
         """, unsafe_allow_html=True)
 
     else:
 
         st.markdown(f"""
-        <audio autoplay loop>
-            <source src="{DEFAULT_SOUND_URL}" type="audio/mpeg">
+        <audio autoplay>
+            <source src="{DEFAULT_SOUND_URL}">
         </audio>
         """, unsafe_allow_html=True)
 
