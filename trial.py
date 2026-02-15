@@ -20,8 +20,8 @@ CHAT_ID = "PASTE_YOUR_CHAT_ID"
 
 # ---------------------------------------------------
 # GITHUB SETTINGS
-GITHUB_TOKEN = "PASTE_GITHUB_TOKEN"
-REPO_NAME = "USERNAME/REPO"
+GITHUB_TOKEN = "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"
+REPO_NAME = "Servejit/Trial"
 FILE_PATH = "users.json"
 
 # ---------------------------------------------------
