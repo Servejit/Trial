@@ -1,315 +1,520 @@
-# ---------------------------------------------------
-# INSTALL (Run once in terminal)
-# pip install streamlit yfinance pandas requests
-# ---------------------------------------------------
+# ============================================================
+# INSTALL
+# pip install streamlit yfinance pandas requests bcrypt
+# ============================================================
 
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import base64
 import requests
+import bcrypt
 from datetime import datetime
 
-st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
-st.title("📊 Live Prices with P2L")
+# ============================================================
+# PAGE CONFIG
 
-# ---------------------------------------------------
+st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
+
+
+# ============================================================
 # TELEGRAM SETTINGS
 
 BOT_TOKEN = "PASTE_YOUR_BOT_TOKEN"
 CHAT_ID = "PASTE_YOUR_CHAT_ID"
 
-# ---------------------------------------------------
-# FLASHING CSS
 
-st.markdown("""
-<style>
-@keyframes flash {
-    0% { opacity: 1; }
-    50% { opacity: 0.2; }
-    100% { opacity: 1; }
-}
-table {
-    background-color:#0e1117;
-    color:white;
-}
-</style>
-""", unsafe_allow_html=True)
+# ============================================================
+# MASTER PASSWORD
 
-# ---------------------------------------------------
-# STOCKSTAR INPUT
+MASTER_PASSWORD = "9999"
 
-stockstar_input = st.text_input(
-    "⭐ StockStar (Comma Separated)",
-    "DLF.NS, CANBK.NS"
-).upper()
 
-stockstar_list = [
-    s.strip().replace(".NS", "")
-    for s in stockstar_input.split(",")
-    if s.strip() != ""
-]
+# ============================================================
+# USER DATABASE (Encrypted passwords)
 
-# ---------------------------------------------------
-# SOUND SETTINGS
+users = {
 
-sound_alert = st.toggle("🔊 Enable Alert Sound for -5% Green Stocks", value=False)
+    "admin": bcrypt.hashpw("1234".encode(), bcrypt.gensalt()),
 
-# ---------------------------------------------------
-# TELEGRAM ALERT TOGGLE
-
-telegram_alert = st.toggle("📲 Enable Telegram Alert for Green Flashing", value=False)
-
-# ---------------------------------------------------
-# SOUND UPLOAD
-
-st.markdown("### 🎵 Alert Sound Settings")
-
-uploaded_sound = st.file_uploader(
-    "Upload Your Custom Sound (.mp3 or .wav)",
-    type=["mp3", "wav"]
-)
-
-DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
-
-# ---------------------------------------------------
-# STOCK LIST
-
-stocks = {
-    "CANBK.NS": 142.93,
-    "CHOLAFIN.NS": 1690.51,
-    "COALINDIA.NS": 414.07,
-    "DLF.NS": 646.85,
-    "HCLTECH.NS": 1465.83,
-    "IDFCFIRSTB.NS": 80.84,
-    "INFY.NS": 1377.05,
-    "MPHASIS.NS": 2445.51,
-    "NHPC.NS": 75.78,
-    "OIL.NS": 468.65,
-    "PAGEIND.NS": 33501.65,
-    "PERSISTENT.NS": 5417.42,
-    "PNB.NS": 119.90,
 }
 
-# ---------------------------------------------------
-# FETCH DATA
 
-@st.cache_data(ttl=60)
-def fetch_data():
+# ============================================================
+# SESSION STATE
 
-    symbols = list(stocks.keys())
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-    data = yf.download(
-        tickers=symbols,
-        period="2d",
-        interval="1d",
-        group_by="ticker",
-        progress=False,
-        threads=True
-    )
-
-    rows = []
-
-    for sym in symbols:
-
-        try:
-
-            ref_low = stocks[sym]
-
-            price = data[sym]["Close"].iloc[-1]
-            prev_close = data[sym]["Close"].iloc[-2]
-            open_p = data[sym]["Open"].iloc[-1]
-            high = data[sym]["High"].iloc[-1]
-            low = data[sym]["Low"].iloc[-1]
-
-            p2l = ((price - ref_low) / ref_low) * 100
-            pct_chg = ((price - prev_close) / prev_close) * 100
-
-            rows.append({
-                "Stock": sym.replace(".NS", ""),
-                "P2L %": p2l,
-                "Price": price,
-                "% Chg": pct_chg,
-                "Low Price": ref_low,
-                "Open": open_p,
-                "High": high,
-                "Low": low
-            })
-
-        except:
-            pass
-
-    return pd.DataFrame(rows)
-
-# ---------------------------------------------------
-# BUTTONS
-
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("🔄 Refresh"):
-        st.cache_data.clear()
-        st.rerun()
-
-with col2:
-    sort_clicked = st.button("📈 Sort by P2L")
-
-# ---------------------------------------------------
-# LOAD DATA
-
-df = fetch_data()
-
-if df.empty:
-    st.error("⚠️ No data received from Yahoo Finance.")
-    st.stop()
-
-numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
-
-for col in numeric_cols:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-if sort_clicked:
-    df = df.sort_values("P2L %", ascending=False)
-
-# ---------------------------------------------------
-# GREEN TRIGGER CHECK
-
-green_trigger = False
-trigger_stock = ""
-trigger_price = 0
-trigger_p2l = 0
-
-for _, row in df.iterrows():
-
-    if row["Stock"] in stockstar_list and row["P2L %"] < -5:
-
-        green_trigger = True
-        trigger_stock = row["Stock"]
-        trigger_price = row["Price"]
-        trigger_p2l = row["P2L %"]
-        break
-
-# ---------------------------------------------------
-# ALERT MEMORY STATE
+if "username" not in st.session_state:
+    st.session_state.username = ""
 
 if "alert_played" not in st.session_state:
     st.session_state.alert_played = False
 
-if not green_trigger:
-    st.session_state.alert_played = False
 
-# ---------------------------------------------------
-# TELEGRAM ALERT (UPGRADED MESSAGE)
+# ============================================================
+# LOGIN SYSTEM
 
-if telegram_alert and green_trigger and not st.session_state.alert_played:
+def login():
 
-    current_time = datetime.now().strftime("%I:%M:%S %p")
+    st.title("🔐 Secure Login")
 
-    message = f"""
+    user = st.text_input("User ID")
+
+    pwd = st.text_input("Password", type="password")
+
+
+    col1, col2 = st.columns(2)
+
+
+    with col1:
+
+        if st.button("Login"):
+
+            if pwd == MASTER_PASSWORD:
+
+                st.session_state.logged_in = True
+                st.session_state.username = user
+                st.rerun()
+
+
+            elif user in users and bcrypt.checkpw(
+                pwd.encode(), users[user]
+            ):
+
+                st.session_state.logged_in = True
+                st.session_state.username = user
+                st.rerun()
+
+            else:
+
+                st.error("Invalid Login")
+
+
+    with col2:
+
+        if st.button("Forgot Password"):
+
+            time = datetime.now().strftime("%I:%M:%S %p")
+
+            msg = f"""
+
+PASSWORD RESET REQUEST
+
+User: {user}
+
+Time: {time}
+
+"""
+
+            requests.post(
+
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+
+                data={
+                    "chat_id": CHAT_ID,
+                    "text": msg
+                }
+            )
+
+            st.warning("Reset request sent")
+
+
+
+# ============================================================
+# LOGOUT
+
+def logout():
+
+    if st.button("🚪 Logout"):
+
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.rerun()
+
+
+
+# ============================================================
+# CHANGE PASSWORD
+
+def change_password():
+
+    st.subheader("🔑 Change Password")
+
+    current = st.text_input("Current Password", type="password")
+
+    new = st.text_input("New Password", type="password")
+
+    confirm = st.text_input("Confirm Password", type="password")
+
+
+    if st.button("Update Password"):
+
+        user = st.session_state.username
+
+        if not bcrypt.checkpw(current.encode(), users[user]):
+
+            st.error("Wrong current password")
+
+        elif new != confirm:
+
+            st.error("Password mismatch")
+
+        else:
+
+            users[user] = bcrypt.hashpw(
+                new.encode(),
+                bcrypt.gensalt()
+            )
+
+            st.success("Password changed")
+
+
+
+# ============================================================
+# ADMIN PANEL
+
+def admin_panel():
+
+    if st.session_state.username != "admin":
+        return
+
+    st.subheader("👨‍💼 Admin Panel")
+
+    tab1, tab2 = st.tabs(["Add User", "Delete User"])
+
+
+    with tab1:
+
+        new_user = st.text_input("New User")
+
+        new_pass = st.text_input(
+            "New Password",
+            type="password"
+        )
+
+        if st.button("Create User"):
+
+            if new_user in users:
+
+                st.error("User exists")
+
+            else:
+
+                users[new_user] = bcrypt.hashpw(
+                    new_pass.encode(),
+                    bcrypt.gensalt()
+                )
+
+                st.success("User created")
+
+
+    with tab2:
+
+        delete_user = st.selectbox(
+            "Select User",
+            list(users.keys())
+        )
+
+        if st.button("Delete User"):
+
+            if delete_user == "admin":
+
+                st.error("Cannot delete admin")
+
+            else:
+
+                del users[delete_user]
+
+                st.success("User deleted")
+
+
+
+# ============================================================
+# LOGIN CHECK
+
+if not st.session_state.logged_in:
+
+    login()
+
+    st.stop()
+
+
+
+# ============================================================
+# AFTER LOGIN
+
+st.title(f"📊 Welcome {st.session_state.username}")
+
+
+logout()
+
+change_password()
+
+admin_panel()
+
+
+
+# ============================================================
+# STOCK SETTINGS
+
+stockstar_input = st.text_input(
+
+    "⭐ StockStar",
+
+    "DLF.NS, CANBK.NS"
+
+).upper()
+
+
+stockstar_list = [
+
+    s.strip().replace(".NS", "")
+
+    for s in stockstar_input.split(",")
+
+]
+
+
+
+sound_alert = st.toggle(
+
+    "🔊 Sound Alert",
+
+    False
+
+)
+
+
+telegram_alert = st.toggle(
+
+    "📲 Telegram Alert",
+
+    False
+
+)
+
+
+
+uploaded_sound = st.file_uploader(
+
+    "Upload Sound",
+
+    type=["mp3", "wav"]
+
+)
+
+
+
+DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+
+
+
+# ============================================================
+# STOCK LIST
+
+stocks = {
+
+    "CANBK.NS":142.93,
+
+    "DLF.NS":646.85,
+
+    "INFY.NS":1377.05,
+
+}
+
+
+
+# ============================================================
+# FETCH DATA
+
+@st.cache_data(ttl=60)
+
+def fetch():
+
+    data = yf.download(
+
+        list(stocks.keys()),
+
+        period="2d",
+
+        interval="1d",
+
+        progress=False
+
+    )
+
+    rows=[]
+
+
+    for sym in stocks:
+
+        price=data[sym]["Close"].iloc[-1]
+
+        p2l=((price-stocks[sym])/stocks[sym])*100
+
+
+        rows.append({
+
+            "Stock":sym.replace(".NS",""),
+
+            "Price":price,
+
+            "P2L %":p2l
+
+        })
+
+
+    return pd.DataFrame(rows)
+
+
+
+df=fetch()
+
+
+
+# ============================================================
+# TRIGGER CHECK
+
+green=False
+
+trigger_stock=""
+
+trigger_price=0
+
+trigger_p2l=0
+
+
+for _,row in df.iterrows():
+
+    if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+
+        green=True
+
+        trigger_stock=row["Stock"]
+
+        trigger_price=row["Price"]
+
+        trigger_p2l=row["P2L %"]
+
+        break
+
+
+
+# ============================================================
+# TELEGRAM ALERT
+
+if telegram_alert and green and not st.session_state.alert_played:
+
+
+    time=datetime.now().strftime("%I:%M:%S %p")
+
+
+    msg=f"""
+
 🟢 GREEN FLASH ALERT
 
 Stock: {trigger_stock}
+
 Price: ₹{trigger_price:.2f}
+
 P2L: {trigger_p2l:.2f}%
 
-Time: {current_time}
+Time: {time}
+
 """
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": message
-    })
+    requests.post(
 
-# ---------------------------------------------------
-# HTML TABLE
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
 
-def generate_html_table(dataframe):
+        data={
 
-    html = """
-    <table style="width:100%; border-collapse: collapse;">
-    <tr style="background-color:#111;">
-    """
+            "chat_id":CHAT_ID,
 
-    for col in dataframe.columns:
-        html += f"<th style='padding:8px; border:1px solid #444;'>{col}</th>"
+            "text":msg
 
-    html += "</tr>"
+        }
 
-    for _, row in dataframe.iterrows():
+    )
 
-        html += "<tr>"
 
-        for col in dataframe.columns:
 
-            value = row[col]
-            style = "padding:6px; border:1px solid #444; text-align:center;"
+# ============================================================
+# SOUND ALERT
 
-            if col == "Stock":
+if sound_alert and green and not st.session_state.alert_played:
 
-                if row["Stock"] in stockstar_list and row["P2L %"] < -5:
-                    style += "color:green; font-weight:bold; animation: flash 1s infinite;"
 
-                elif row["Stock"] in stockstar_list and row["P2L %"] < -3:
-                    style += "color:orange; font-weight:bold;"
+    st.session_state.alert_played=True
 
-                elif row["P2L %"] < -2:
-                    style += "color:hotpink; font-weight:bold;"
 
-            if col in ["P2L %", "% Chg"]:
+    if uploaded_sound:
 
-                if value > 0:
-                    style += "color:green; font-weight:bold;"
 
-                elif value < 0:
-                    style += "color:red; font-weight:bold;"
+        b64=base64.b64encode(
 
-            if isinstance(value, float):
-                value = f"{value:.2f}"
+            uploaded_sound.read()
 
-            html += f"<td style='{style}'>{value}</td>"
+        ).decode()
 
-        html += "</tr>"
 
-    html += "</table>"
+        st.markdown(
 
-    return html
+        f"""
 
-st.markdown(generate_html_table(df), unsafe_allow_html=True)
-
-# ---------------------------------------------------
-# SOUND ALERT (ONCE PER TRIGGER)
-
-if sound_alert and green_trigger and not st.session_state.alert_played:
-
-    st.session_state.alert_played = True
-
-    if uploaded_sound is not None:
-
-        audio_bytes = uploaded_sound.read()
-        b64 = base64.b64encode(audio_bytes).decode()
-        file_type = uploaded_sound.type
-
-        st.markdown(f"""
         <audio autoplay>
-            <source src="data:{file_type};base64,{b64}">
+
+        <source src="data:audio/mp3;base64,{b64}">
+
         </audio>
-        """, unsafe_allow_html=True)
+
+        """,
+
+        unsafe_allow_html=True
+
+        )
+
 
     else:
 
-        st.markdown(f"""
-        <audio autoplay>
-            <source src="{DEFAULT_SOUND_URL}">
-        </audio>
-        """, unsafe_allow_html=True)
 
-# ---------------------------------------------------
+        st.markdown(
+
+        f"""
+
+        <audio autoplay>
+
+        <source src="{DEFAULT_SOUND_URL}">
+
+        </audio>
+
+        """,
+
+        unsafe_allow_html=True
+
+        )
+
+
+
+# ============================================================
+# SHOW DATA
+
+st.dataframe(df)
+
+
+
+# ============================================================
 # AVERAGE
 
-average_p2l = df["P2L %"].mean()
+st.write(
 
-st.markdown(
-    f"### 📊 Average P2L of All Stocks is **{average_p2l:.2f}%**"
+"Average P2L:",
+
+round(df["P2L %"].mean(),2),
+
+"%"
+
 )
