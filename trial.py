@@ -1,49 +1,70 @@
+# ============================================================
+# INSTALL REQUIREMENTS
+# pip install streamlit yfinance pandas requests
+# ============================================================
+
 import streamlit as st
+import yfinance as yf
+import pandas as pd
 import json
-import bcrypt
+import hashlib
+import requests
+import base64
 import os
 
-# ----------------------------------------
-# FILE NAME
-# ----------------------------------------
+# ============================================================
+# PAGE CONFIG
+# ============================================================
+
+st.set_page_config(page_title="Stock Alert App", layout="wide")
+
+# ============================================================
+# FILE PATH
+# ============================================================
 
 USER_FILE = "users.json"
 
+# ============================================================
+# TELEGRAM SETTINGS
+# ============================================================
 
-# ----------------------------------------
-# INITIAL USER FILE
-# ----------------------------------------
+BOT_TOKEN = "PASTE_YOUR_BOT_TOKEN"
+CHAT_ID = "PASTE_YOUR_CHAT_ID"
 
-def create_default_admin():
+# ============================================================
+# PASSWORD HASH
+# ============================================================
+
+def hash_password(password):
+
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+# ============================================================
+# LOAD USERS
+# ============================================================
+
+def load_users():
 
     if not os.path.exists(USER_FILE):
 
-        admin_pass = hash_password("admin123")
-
         users = {
             "admin": {
-                "password": admin_pass,
+                "password": hash_password("admin123"),
                 "role": "admin"
             }
         }
 
-        save_users(users)
-
-
-# ----------------------------------------
-# LOAD USERS
-# ----------------------------------------
-
-def load_users():
+        with open(USER_FILE, "w") as f:
+            json.dump(users, f)
 
     with open(USER_FILE, "r") as f:
-
         return json.load(f)
 
 
-# ----------------------------------------
+# ============================================================
 # SAVE USERS
-# ----------------------------------------
+# ============================================================
 
 def save_users(users):
 
@@ -52,63 +73,32 @@ def save_users(users):
         json.dump(users, f)
 
 
-# ----------------------------------------
-# HASH PASSWORD
-# ----------------------------------------
-
-def hash_password(password):
-
-    return bcrypt.hashpw(
-        password.encode(),
-        bcrypt.gensalt()
-    ).decode()
-
-
-# ----------------------------------------
-# CHECK PASSWORD
-# ----------------------------------------
-
-def check_password(password, hashed):
-
-    return bcrypt.checkpw(
-        password.encode(),
-        hashed.encode()
-    )
-
-
-# ----------------------------------------
+# ============================================================
 # LOGIN
-# ----------------------------------------
+# ============================================================
 
 def login():
 
-    st.title("🔐 Login System")
+    st.title("🔐 Login")
 
-    username = st.text_input(
-        "Username",
-        key="login_user"
-    )
+    username = st.text_input("User ID", key="login_user")
 
-    password = st.text_input(
-        "Password",
-        type="password",
-        key="login_pass"
-    )
+    password = st.text_input("Password", type="password", key="login_pass")
 
     if st.button("Login", key="login_btn"):
 
         users = load_users()
 
-        if username in users and check_password(
-            password,
-            users[username]["password"]
-        ):
+        if username in users and users[username]["password"] == hash_password(password):
 
             st.session_state.logged = True
+
             st.session_state.username = username
+
             st.session_state.role = users[username]["role"]
 
             st.success("Login successful")
+
             st.rerun()
 
         else:
@@ -116,165 +106,267 @@ def login():
             st.error("Invalid login")
 
 
-# ----------------------------------------
+# ============================================================
 # CHANGE PASSWORD
-# ----------------------------------------
+# ============================================================
 
 def change_password():
 
     st.subheader("🔑 Change Password")
 
-    current = st.text_input(
-        "Current Password",
-        type="password",
-        key="cp1"
-    )
+    current = st.text_input("Current Password", type="password", key="cp1")
 
-    new = st.text_input(
-        "New Password",
-        type="password",
-        key="cp2"
-    )
+    new = st.text_input("New Password", type="password", key="cp2")
 
-    confirm = st.text_input(
-        "Confirm Password",
-        type="password",
-        key="cp3"
-    )
+    confirm = st.text_input("Confirm Password", type="password", key="cp3")
 
-    if st.button("Change Password", key="cp_btn"):
+    if st.button("Change Password", key="cpbtn"):
 
         users = load_users()
 
-        username = st.session_state.username
+        user = st.session_state.username
 
-        if not check_password(
-            current,
-            users[username]["password"]
-        ):
+        if users[user]["password"] != hash_password(current):
 
             st.error("Wrong password")
 
-        elif new != confirm:
+            return
+
+        if new != confirm:
 
             st.error("Passwords do not match")
 
-        else:
+            return
 
-            users[username]["password"] = hash_password(new)
+        users[user]["password"] = hash_password(new)
 
-            save_users(users)
+        save_users(users)
 
-            st.success("Password changed")
+        st.success("Password changed")
 
 
-# ----------------------------------------
+# ============================================================
 # ADMIN PANEL
-# ----------------------------------------
+# ============================================================
 
 def admin_panel():
 
     st.subheader("👨‍💼 Admin Panel")
 
-    tab1, tab2 = st.tabs([
-        "Add User",
-        "Delete User"
-    ])
+    users = load_users()
+
+    new_user = st.text_input("New User", key="new_user")
+
+    new_pass = st.text_input("New Password", type="password", key="new_pass")
+
+    if st.button("Add User"):
+
+        users[new_user] = {
+
+            "password": hash_password(new_pass),
+
+            "role": "user"
+
+        }
+
+        save_users(users)
+
+        st.success("User added")
 
 
-    # ADD USER
+    delete_user = st.selectbox("Delete User", list(users.keys()))
 
-    with tab1:
+    if st.button("Delete User"):
 
-        new_user = st.text_input(
-            "Username",
-            key="au1"
-        )
+        if delete_user != "admin":
 
-        new_pass = st.text_input(
-            "Password",
-            type="password",
-            key="au2"
-        )
+            del users[delete_user]
 
-        if st.button("Add User", key="au_btn"):
+            save_users(users)
 
-            users = load_users()
-
-            if new_user in users:
-
-                st.error("User exists")
-
-            else:
-
-                users[new_user] = {
-
-                    "password": hash_password(new_pass),
-
-                    "role": "user"
-
-                }
-
-                save_users(users)
-
-                st.success("User added")
+            st.success("Deleted")
 
 
+# ============================================================
+# STOCK DATA
+# ============================================================
 
-    # DELETE USER
+stocks = {
 
-    with tab2:
+    "CANBK.NS": 142.93,
+    "DLF.NS": 646.85,
+    "INFY.NS": 1377.05,
+    "HCLTECH.NS": 1465.83
 
-        users = load_users()
-
-        user_del = st.selectbox(
-            "Select user",
-            list(users.keys()),
-            key="du1"
-        )
-
-        if st.button("Delete", key="du_btn"):
-
-            if user_del == "admin":
-
-                st.error("Cannot delete admin")
-
-            else:
-
-                users.pop(user_del)
-
-                save_users(users)
-
-                st.success("Deleted")
+}
 
 
-# ----------------------------------------
+@st.cache_data(ttl=60)
+def fetch():
+
+    data = yf.download(
+
+        list(stocks.keys()),
+        period="2d",
+        interval="1d",
+        progress=False
+
+    )
+
+    rows = []
+
+    for s in stocks:
+
+        try:
+
+            price = data["Close"][s].iloc[-1]
+
+            ref = stocks[s]
+
+            p2l = ((price - ref) / ref) * 100
+
+            rows.append({
+
+                "Stock": s.replace(".NS", ""),
+                "Price": price,
+                "P2L %": p2l
+
+            })
+
+        except:
+
+            pass
+
+    return pd.DataFrame(rows)
+
+
+# ============================================================
+# TELEGRAM ALERT MEMORY
+# ============================================================
+
+if "alert_sent" not in st.session_state:
+
+    st.session_state.alert_sent = False
+
+
+# ============================================================
+# SOUND MEMORY
+# ============================================================
+
+if "sound_played" not in st.session_state:
+
+    st.session_state.sound_played = False
+
+
+# ============================================================
 # DASHBOARD
-# ----------------------------------------
+# ============================================================
 
 def dashboard():
 
-    st.title(
-        f"📊 Welcome {st.session_state.username}"
-    )
+    st.title(f"📊 Welcome {st.session_state.username}")
 
     if st.button("Logout"):
 
         st.session_state.logged = False
+
         st.rerun()
 
+
+    df = fetch()
+
+    st.dataframe(df, use_container_width=True)
+
+
+    trigger = df[df["P2L %"] < -5]
+
+
+    # TELEGRAM ONCE
+
+    if not trigger.empty:
+
+        if not st.session_state.alert_sent:
+
+            stock = trigger.iloc[0]["Stock"]
+
+            msg = f"GREEN FLASH ALERT\nStock: {stock}\nBelow -5%"
+
+            requests.post(
+
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+
+                data={
+
+                    "chat_id": CHAT_ID,
+                    "text": msg
+
+                }
+
+            )
+
+            st.session_state.alert_sent = True
+
+            st.success("Telegram Sent")
+
+    else:
+
+        st.session_state.alert_sent = False
+
+
+    # SOUND PLAY TWICE ONLY
+
+    if not trigger.empty:
+
+        if not st.session_state.sound_played:
+
+            sound_url = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+
+            st.markdown(f"""
+
+            <audio id="alertaudio">
+
+            <source src="{sound_url}" type="audio/mpeg">
+
+            </audio>
+
+            <script>
+
+            var audio = document.getElementById("alertaudio");
+
+            var count = 0;
+
+            audio.play();
+
+            audio.onended = function() {{
+
+                count++;
+
+                if(count < 2){{audio.play();}}
+
+            }};
+
+            </script>
+
+            """, unsafe_allow_html=True)
+
+            st.session_state.sound_played = True
+
+    else:
+
+        st.session_state.sound_played = False
+
+
     change_password()
+
 
     if st.session_state.role == "admin":
 
         admin_panel()
 
 
-# ----------------------------------------
+# ============================================================
 # MAIN
-# ----------------------------------------
-
-create_default_admin()
+# ============================================================
 
 if "logged" not in st.session_state:
 
