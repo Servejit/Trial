@@ -1,38 +1,46 @@
-# ---------------------------------------------------
-# INSTALL REQUIREMENTS
+# =========================================================
+# INSTALL
 # pip install streamlit yfinance pandas requests bcrypt
-# ---------------------------------------------------
+# =========================================================
 
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import base64
 import requests
-import json
 import bcrypt
+import json
 import os
+import base64
 
-# ---------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------
-
-st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
-
-
-# ===================================================
-# LOGIN SYSTEM
-# ===================================================
+# =========================================================
+# CONFIG FILES
+# =========================================================
 
 USER_FILE = "users.json"
+SESSION_FILE = "session.json"
 
+# =========================================================
+# PASSWORD FUNCTIONS
+# =========================================================
 
 def hash_password(password):
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    return bcrypt.hashpw(
+        password.encode(),
+        bcrypt.gensalt()
+    ).decode()
 
 
 def check_password(password, hashed):
-    return bcrypt.checkpw(password.encode(), hashed.encode())
 
+    return bcrypt.checkpw(
+        password.encode(),
+        hashed.encode()
+    )
+
+# =========================================================
+# USER DATABASE
+# =========================================================
 
 def load_users():
 
@@ -47,27 +55,58 @@ def load_users():
 
         save_users(users)
 
-    with open(USER_FILE, "r") as f:
+    with open(USER_FILE,"r") as f:
+
         return json.load(f)
 
 
 def save_users(users):
 
-    with open(USER_FILE, "w") as f:
-        json.dump(users, f)
+    with open(USER_FILE,"w") as f:
+
+        json.dump(users,f)
+
+# =========================================================
+# SESSION SAVE (REMEMBER LOGIN)
+# =========================================================
+
+def save_session(user):
+
+    with open(SESSION_FILE,"w") as f:
+
+        json.dump({"user":user},f)
 
 
-# ---------------------------------------------------
-# LOGIN PAGE
-# ---------------------------------------------------
+def load_session():
+
+    if os.path.exists(SESSION_FILE):
+
+        with open(SESSION_FILE) as f:
+
+            return json.load(f)["user"]
+
+    return None
+
+
+def clear_session():
+
+    if os.path.exists(SESSION_FILE):
+
+        os.remove(SESSION_FILE)
+
+# =========================================================
+# LOGIN SYSTEM
+# =========================================================
 
 def login():
 
     st.title("🔐 Login")
 
-    user = st.text_input("User ID", key="login_user")
+    user = st.text_input("User ID")
 
-    password = st.text_input("Password", type="password", key="login_pass")
+    password = st.text_input("Password", type="password")
+
+    remember = st.checkbox("Remember Me")
 
     if st.button("Login"):
 
@@ -75,42 +114,62 @@ def login():
 
         if user in users and check_password(password, users[user]["password"]):
 
-            st.session_state.logged = True
             st.session_state.user = user
             st.session_state.role = users[user]["role"]
+            st.session_state.logged = True
+
+            if remember:
+                save_session(user)
 
             st.rerun()
 
         else:
 
-            st.error("Invalid ID or Password")
+            st.error("Invalid login")
 
+# =========================================================
+# AUTO LOGIN
+# =========================================================
 
-# ---------------------------------------------------
-# CHANGE PASSWORD
-# ---------------------------------------------------
+def auto_login():
 
-def change_password():
+    saved = load_session()
 
-    st.subheader("🔑 Change Password")
-
-    current = st.text_input("Current Password", type="password", key="cp1")
-
-    new = st.text_input("New Password", type="password", key="cp2")
-
-    confirm = st.text_input("Confirm Password", type="password", key="cp3")
-
-    if st.button("Update Password"):
+    if saved:
 
         users = load_users()
 
-        if not check_password(current, users[st.session_state.user]["password"]):
+        if saved in users:
 
-            st.error("Wrong Password")
+            st.session_state.user = saved
+            st.session_state.role = users[saved]["role"]
+            st.session_state.logged = True
+
+# =========================================================
+# CHANGE PASSWORD
+# =========================================================
+
+def change_password():
+
+    st.subheader("Change Password")
+
+    old = st.text_input("Current", type="password")
+
+    new = st.text_input("New", type="password")
+
+    confirm = st.text_input("Confirm", type="password")
+
+    if st.button("Update"):
+
+        users = load_users()
+
+        if not check_password(old, users[st.session_state.user]["password"]):
+
+            st.error("Wrong password")
 
         elif new != confirm:
 
-            st.error("Passwords not match")
+            st.error("Mismatch")
 
         else:
 
@@ -118,71 +177,60 @@ def change_password():
 
             save_users(users)
 
-            st.success("Password Updated")
+            st.success("Updated")
 
-
-# ---------------------------------------------------
+# =========================================================
 # ADMIN PANEL
-# ---------------------------------------------------
+# =========================================================
 
 def admin_panel():
 
-    st.subheader("👨‍💼 Admin Panel")
+    st.subheader("Admin Panel")
 
-    tab1, tab2 = st.tabs(["Add User", "Delete User"])
+    new_user = st.text_input("New User")
 
-    with tab1:
+    new_pass = st.text_input("Password", type="password")
 
-        new_user = st.text_input("New User", key="add_user")
-
-        new_pass = st.text_input("New Password", type="password", key="add_pass")
-
-        if st.button("Create User"):
-
-            users = load_users()
-
-            if new_user in users:
-
-                st.error("User exists")
-
-            else:
-
-                users[new_user] = {
-
-                    "password": hash_password(new_pass),
-                    "role": "user"
-                }
-
-                save_users(users)
-
-                st.success("User Created")
-
-    with tab2:
+    if st.button("Add User"):
 
         users = load_users()
 
-        delete_user = st.selectbox("Select User", list(users.keys()))
+        users[new_user] = {
 
-        if st.button("Delete User"):
+            "password": hash_password(new_pass),
+            "role": "user"
 
-            if delete_user == "admin":
+        }
 
-                st.error("Cannot delete admin")
+        save_users(users)
 
-            else:
+        st.success("User added")
 
-                users.pop(delete_user)
+    st.divider()
 
-                save_users(users)
+    users = load_users()
 
-                st.success("Deleted")
+    delete = st.selectbox("Delete User", list(users.keys()))
 
+    if st.button("Delete"):
 
-# ===================================================
-# STOCK DASHBOARD (YOUR ORIGINAL UI)
-# ===================================================
+        if delete == "admin":
 
-def stock_dashboard():
+            st.error("Cannot delete admin")
+
+        else:
+
+            users.pop(delete)
+
+            save_users(users)
+
+            st.success("Deleted")
+
+# =========================================================
+# STOCK DASHBOARD (SAME UI)
+# =========================================================
+
+def dashboard():
 
     st.title("📊 Live Prices with P2L")
 
@@ -190,128 +238,84 @@ def stock_dashboard():
 
     if st.button("Logout"):
 
+        clear_session()
+
         st.session_state.logged = False
+
         st.rerun()
 
-    # ---------------------------------------------------
-    # TELEGRAM SETTINGS
-
-    BOT_TOKEN = "PASTE_YOUR_BOT_TOKEN"
-    CHAT_ID = "PASTE_YOUR_CHAT_ID"
-
-    # ---------------------------------------------------
-    # CSS
-
-    st.markdown("""
-    <style>
-    @keyframes flash {
-        0% { opacity: 1; }
-        50% { opacity: 0.2; }
-        100% { opacity: 1; }
-    }
-    table {
-        background-color:#0e1117;
-        color:white;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ---------------------------------------------------
-
-    stockstar_input = st.text_input(
-        "⭐ StockStar",
-        "DLF.NS, CANBK.NS"
-    ).upper()
-
-    stockstar_list = [
-        s.strip().replace(".NS", "")
-        for s in stockstar_input.split(",")
-    ]
-
-    sound_alert = st.toggle("🔊 Sound Alert")
-
-    telegram_alert = st.toggle("📲 Telegram Alert")
-
-    uploaded_sound = st.file_uploader("Upload Sound")
-
-    DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
-
-    # ---------------------------------------------------
+    BOT_TOKEN="PASTE"
+    CHAT_ID="PASTE"
 
     stocks = {
 
-        "CANBK.NS": 142.93,
-        "DLF.NS": 646.85,
-        "INFY.NS": 1377.05,
-        "PNB.NS": 119.90,
+        "CANBK.NS":142.93,
+        "DLF.NS":646.85,
+        "INFY.NS":1377.05
 
     }
 
-    # ---------------------------------------------------
+    stockstar = st.text_input("StockStar","CANBK.NS")
+
+    sound = st.toggle("Sound Alert")
+
+    telegram = st.toggle("Telegram Alert")
+
+    upload = st.file_uploader("Sound")
+
+    DEFAULT="https://assets.mixkit.co/active_storage/sfx/2869-preview.mp3"
 
     @st.cache_data(ttl=60)
     def fetch():
 
-        data = yf.download(list(stocks.keys()), period="2d", interval="1d")
+        data=yf.download(list(stocks.keys()),period="2d")
 
-        rows = []
+        rows=[]
 
-        for sym in stocks:
+        for s in stocks:
 
-            price = data["Close"][sym].iloc[-1]
+            price=data["Close"][s].iloc[-1]
 
-            ref = stocks[sym]
+            ref=stocks[s]
 
-            p2l = ((price - ref) / ref) * 100
+            p2l=((price-ref)/ref)*100
 
             rows.append({
 
-                "Stock": sym.replace(".NS", ""),
-                "Price": price,
-                "P2L %": p2l
+                "Stock":s.replace(".NS",""),
+                "Price":price,
+                "P2L %":p2l
 
             })
 
         return pd.DataFrame(rows)
 
-    df = fetch()
+    df=fetch()
 
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df,use_container_width=True)
 
-    # ---------------------------------------------------
-    # TRIGGER
-
-    trigger = df[df["P2L %"] < -5]
+    trigger=df[df["P2L %"]<-5]
 
     if not trigger.empty:
 
-        stock = trigger.iloc[0]["Stock"]
+        stock=trigger.iloc[0]["Stock"]
 
-        # TELEGRAM
+        if telegram:
 
-        if telegram_alert:
+            requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                data={"chat_id":CHAT_ID,"text":stock}
+            )
 
-            msg = f"GREEN FLASH ALERT\nStock: {stock}"
+        if sound:
 
-            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            src=DEFAULT
 
-            requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+            if upload:
 
-        # SOUND TWICE ONLY
+                b64=base64.b64encode(upload.read()).decode()
 
-        if sound_alert:
-
-            if uploaded_sound:
-
-                audio_bytes = uploaded_sound.read()
-
-                b64 = base64.b64encode(audio_bytes).decode()
-
-                src = f"data:audio/mp3;base64,{b64}"
-
-            else:
-
-                src = DEFAULT_SOUND_URL
+                src=f"data:audio/mp3;base64,{b64}"
 
             st.markdown(f"""
 
@@ -321,41 +325,39 @@ def stock_dashboard():
 
             <script>
 
-            let audio = document.querySelector("audio");
+            let a=document.querySelector("audio");
 
-            let count = 0;
+            let c=0;
 
-            audio.onended = function(){{
+            a.onended=function(){{
 
-                count++;
+            c++;
 
-                if(count < 2) audio.play();
+            if(c<2)a.play();
 
             }}
 
             </script>
 
-            """, unsafe_allow_html=True)
+            """,unsafe_allow_html=True)
 
-
-# ===================================================
+# =========================================================
 # MAIN CONTROL
-# ===================================================
+# =========================================================
 
 if "logged" not in st.session_state:
 
-    st.session_state.logged = False
+    st.session_state.logged=False
 
+    auto_login()
 
 if st.session_state.logged:
 
-    stock_dashboard()
-
-    st.divider()
+    dashboard()
 
     change_password()
 
-    if st.session_state.role == "admin":
+    if st.session_state.role=="admin":
 
         admin_panel()
 
