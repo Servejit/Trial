@@ -20,8 +20,8 @@ CHAT_ID = "PASTE_YOUR_CHAT_ID"
 
 # ---------------------------------------------------
 # GITHUB SETTINGS
-GITHUB_TOKEN = "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"
-REPO_NAME = "Servejit/Trial"
+GITHUB_TOKEN = "PASTE_GITHUB_TOKEN"
+REPO_NAME = "USERNAME/REPO"
 FILE_PATH = "users.json"
 
 # ---------------------------------------------------
@@ -29,7 +29,16 @@ FILE_PATH = "users.json"
 st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 
 # ---------------------------------------------------
-# LOAD USERS
+# SESSION STATE
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user" not in st.session_state:
+    st.session_state.user = ""
+if "role" not in st.session_state:
+    st.session_state.role = ""
+
+# ---------------------------------------------------
+# LOAD & SAVE USERS
 def load_users():
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(REPO_NAME)
@@ -39,8 +48,6 @@ def load_users():
     except:
         return {}
 
-# ---------------------------------------------------
-# SAVE USERS
 def save_users(users):
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(REPO_NAME)
@@ -59,8 +66,6 @@ def hash_password(password):
 def check_password(password, hashed):
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
-# ---------------------------------------------------
-# OTP FUNCTION
 def send_otp():
     otp = str(random.randint(100000, 999999))
     st.session_state.reset_otp = otp
@@ -71,23 +76,14 @@ def send_otp():
     )
 
 # ---------------------------------------------------
-# SESSION STATE
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "user" not in st.session_state:
-    st.session_state.user = ""
-if "role" not in st.session_state:
-    st.session_state.role = ""
-
-# ---------------------------------------------------
 # LOGIN
 def login():
     st.title("🔐 Login")
     users = load_users()
-    username = st.text_input("User ID")
-    password = st.text_input("Password", type="password")
+    username = st.text_input("User ID", key="login_user")
+    password = st.text_input("Password", type="password", key="login_pass")
 
-    if st.button("Login"):
+    if st.button("Login", key="login_btn"):
         if username in users and check_password(password, users[username]["password"]):
             st.session_state.logged_in = True
             st.session_state.user = username
@@ -98,17 +94,17 @@ def login():
 
     st.markdown("---")
     st.subheader("Forgot Password")
-    reset_user = st.text_input("User ID", key="reset_user")
-    if st.button("Send OTP"):
+    reset_user = st.text_input("User ID", key="reset_user_input")
+    if st.button("Send OTP", key="send_otp_btn"):
         if reset_user in users:
             send_otp()
             st.success("OTP sent to Telegram")
         else:
             st.error("User not found")
 
-    otp = st.text_input("Enter OTP")
-    new_pass = st.text_input("New Password", type="password")
-    if st.button("Reset Password"):
+    otp = st.text_input("Enter OTP", key="otp_input")
+    new_pass = st.text_input("New Password", type="password", key="otp_new_pass")
+    if st.button("Reset Password", key="reset_pass_btn"):
         if "reset_otp" not in st.session_state:
             st.error("Send OTP first")
         elif time.time() - st.session_state.otp_time > 300:
@@ -125,11 +121,11 @@ def login():
 def change_password():
     st.subheader("Change Password")
     users = load_users()
-    current = st.text_input("Current Password", type="password")
-    new = st.text_input("New Password", type="password")
-    confirm = st.text_input("Confirm Password", type="password")
+    current = st.text_input("Current Password", type="password", key="curr_pass")
+    new = st.text_input("New Password", type="password", key="new_pass")
+    confirm = st.text_input("Confirm Password", type="password", key="conf_pass")
 
-    if st.button("Update Password"):
+    if st.button("Update Password", key="update_pass_btn"):
         if not check_password(current, users[st.session_state.user]["password"]):
             st.error("Wrong Password")
         elif new != confirm:
@@ -147,18 +143,18 @@ def admin_panel():
     st.table(list(users.keys()))
 
     # ADD USER
-    new_user = st.text_input("New User")
-    new_pass = st.text_input("New Password", type="password")
-    if st.button("Add User"):
+    new_user = st.text_input("New User", key="admin_new_user")
+    new_pass = st.text_input("New Password", type="password", key="admin_new_pass")
+    if st.button("Add User", key="admin_add_btn"):
         users[new_user] = {"password": hash_password(new_pass), "role": "user"}
         save_users(users)
         st.success("User Added")
         st.rerun()
 
     # DELETE USER SAFE
-    delete = st.selectbox("Delete User", list(users.keys()))
-    confirm = st.checkbox("Confirm Delete")
-    if st.button("Delete"):
+    delete = st.selectbox("Delete User", list(users.keys()), key="admin_delete_user")
+    confirm = st.checkbox("Confirm Delete", key="admin_confirm_delete")
+    if st.button("Delete", key="admin_delete_btn"):
         if delete == "admin":
             st.error("Cannot delete admin")
         elif confirm:
@@ -172,18 +168,14 @@ def admin_panel():
 def dashboard():
     st.title("📊 Live Prices with P2L")
 
-    # STOCKSTAR INPUT
-    stockstar_input = st.text_input("⭐ StockStar", "DLF.NS, CANBK.NS").upper()
+    stockstar_input = st.text_input("⭐ StockStar", "DLF.NS, CANBK.NS", key="stockstar_input").upper()
     stockstar_list = [s.replace(".NS","").strip() for s in stockstar_input.split(",")]
 
-    # SOUND & TELEGRAM TOGGLE
-    sound = st.toggle("Sound Alert")
-    telegram = st.toggle("Telegram Alert")
+    sound = st.toggle("Sound Alert", key="sound_toggle")
+    telegram = st.toggle("Telegram Alert", key="telegram_toggle")
 
-    # STOCK LIST
     stocks = {"CANBK.NS":142.93, "DLF.NS":646.85}
 
-    # FETCH DATA
     @st.cache_data(ttl=60)
     def fetch():
         data = yf.download(list(stocks.keys()), period="2d", interval="1d", group_by="ticker")
@@ -196,11 +188,11 @@ def dashboard():
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Refresh"):
+        if st.button("Refresh", key="refresh_btn"):
             st.cache_data.clear()
             st.rerun()
     with col2:
-        sort = st.button("Sort")
+        sort = st.button("Sort", key="sort_btn")
 
     df = fetch()
     if sort:
@@ -215,7 +207,7 @@ if not st.session_state.logged_in:
     login()
 else:
     st.sidebar.write("Welcome", st.session_state.user)
-    if st.sidebar.button("Logout"):
+    if st.sidebar.button("Logout", key="logout_btn"):
         st.session_state.logged_in=False
         st.rerun()
     change_password()
