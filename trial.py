@@ -115,17 +115,20 @@ def login():
             users[reset_user]["password"] = hash_password(new_pass)
             save_users(users)
             st.success("Password Reset Successful")
+            st.session_state["otp_input"] = ""
+            st.session_state["otp_new_pass"] = ""
 
 # ---------------------------------------------------
 # CHANGE PASSWORD
 def change_password():
     st.subheader("Change Password")
     users = load_users()
-    current = st.text_input("Current Password", type="password", key="curr_pass")
-    new = st.text_input("New Password", type="password", key="new_pass")
-    confirm = st.text_input("Confirm Password", type="password", key="conf_pass")
-
-    if st.button("Update Password", key="update_pass_btn"):
+    
+    current = st.text_input("Current Password", type="password", key="change_curr_pass")
+    new = st.text_input("New Password", type="password", key="change_new_pass")
+    confirm = st.text_input("Confirm Password", type="password", key="change_conf_pass")
+    
+    if st.button("Update Password", key="change_update_btn"):
         if not check_password(current, users[st.session_state.user]["password"]):
             st.error("Wrong Password")
         elif new != confirm:
@@ -133,7 +136,11 @@ def change_password():
         else:
             users[st.session_state.user]["password"] = hash_password(new)
             save_users(users)
-            st.success("Updated")
+            st.success("Password Updated")
+            # Clear input fields
+            st.session_state["change_curr_pass"] = ""
+            st.session_state["change_new_pass"] = ""
+            st.session_state["change_conf_pass"] = ""
 
 # ---------------------------------------------------
 # ADMIN PANEL
@@ -143,24 +150,25 @@ def admin_panel():
     st.table(list(users.keys()))
 
     # ADD USER
-    new_user = st.text_input("New User", key="admin_new_user")
-    new_pass = st.text_input("New Password", type="password", key="admin_new_pass")
-    if st.button("Add User", key="admin_add_btn"):
-        users[new_user] = {"password": hash_password(new_pass), "role": "user"}
-        save_users(users)
-        st.success("User Added")
-        st.rerun()
+    new_user = st.text_input("New User", key="admin_new_user_input")
+    new_pass = st.text_input("New Password", type="password", key="admin_new_pass_input")
+    if st.button("Add User", key="admin_add_user_btn"):
+        if new_user and new_pass:
+            users[new_user] = {"password": hash_password(new_pass), "role": "user"}
+            save_users(users)
+            st.success(f"User '{new_user}' Added")
+            st.session_state["admin_new_user_input"] = ""
+            st.session_state["admin_new_pass_input"] = ""
+            st.rerun()
 
     # DELETE USER SAFE
-    delete = st.selectbox("Delete User", list(users.keys()), key="admin_delete_user")
-    confirm = st.checkbox("Confirm Delete", key="admin_confirm_delete")
-    if st.button("Delete", key="admin_delete_btn"):
-        if delete == "admin":
-            st.error("Cannot delete admin")
-        elif confirm:
+    delete = st.selectbox("Delete User", [u for u in users.keys() if u != "admin"], key="admin_delete_select")
+    confirm = st.checkbox("Confirm Delete", key="admin_delete_confirm")
+    if st.button("Delete User", key="admin_delete_btn"):
+        if confirm:
             del users[delete]
             save_users(users)
-            st.success("Deleted")
+            st.success(f"User '{delete}' Deleted")
             st.rerun()
 
 # ---------------------------------------------------
@@ -183,7 +191,7 @@ def dashboard():
         for s in stocks:
             price = data[s]["Close"].iloc[-1]
             p2l = ((price-stocks[s])/stocks[s])*100
-            rows.append({"Stock": s.replace(".NS",""), "Price": price, "P2L %": p2l})
+            rows.append({"Stock": s.replace(".NS",""), "Price": price, "P2L %": round(p2l,2)})
         return pd.DataFrame(rows)
 
     col1, col2 = st.columns(2)
