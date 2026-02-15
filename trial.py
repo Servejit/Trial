@@ -1,262 +1,298 @@
-# ---------------------------------------------------
-# INSTALL REQUIREMENTS
-# pip install streamlit yfinance pandas bcrypt
-# ---------------------------------------------------
+# ============================================================
+# FINAL PRO STOCK APP
+# ============================================================
 
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import bcrypt
 import json
+import os
 import time
 
-# ---------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------
+st.set_page_config(page_title="Stock App", layout="wide")
 
-st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
-
-# ---------------------------------------------------
-# USER FILE
-# ---------------------------------------------------
+# ============================================================
+# USER DATABASE
+# ============================================================
 
 USER_FILE = "users.json"
 
 
-# ---------------------------------------------------
-# LOAD USERS
-# ---------------------------------------------------
-
 def load_users():
-    try:
-        with open(USER_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {}
+
+    if not os.path.exists(USER_FILE):
+
+        default = {
+
+            "admin": {
+
+                "password": hash_password("admin123"),
+                "role": "admin"
+            }
+
+        }
+
+        save_users(default)
+
+    with open(USER_FILE, "r") as f:
+        return json.load(f)
 
 
 def save_users(users):
+
     with open(USER_FILE, "w") as f:
         json.dump(users, f)
 
 
-# ---------------------------------------------------
-# PASSWORD HASH
-# ---------------------------------------------------
-
 def hash_password(password):
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    return bcrypt.hashpw(
+        password.encode(),
+        bcrypt.gensalt()
+    ).decode()
 
 
 def check_password(password, hashed):
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+
+    if isinstance(hashed, str):
+        hashed = hashed.encode()
+
+    return bcrypt.checkpw(
+        password.encode(),
+        hashed
+    )
 
 
-# ---------------------------------------------------
+# ============================================================
 # SESSION INIT
-# ---------------------------------------------------
+# ============================================================
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+if "logged" not in st.session_state:
+    st.session_state.logged = False
 
 if "user" not in st.session_state:
     st.session_state.user = ""
 
-if "page" not in st.session_state:
-    st.session_state.page = "login"
+if "role" not in st.session_state:
+    st.session_state.role = ""
 
 
-# ---------------------------------------------------
-# LOGIN PAGE
-# ---------------------------------------------------
+# ============================================================
+# LOGIN
+# ============================================================
 
 def login():
 
     st.title("🔐 Login")
 
-    username = st.text_input("Username")
+    username = st.text_input("User ID")
+
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
 
         users = load_users()
 
-        if username in users and check_password(password, users[username]):
+        if username in users and check_password(password, users[username]["password"]):
 
-            st.session_state.logged_in = True
+            st.session_state.logged = True
             st.session_state.user = username
-            st.session_state.page = "dashboard"
+            st.session_state.role = users[username]["role"]
 
             st.rerun()
 
         else:
+
             st.error("Invalid Login")
 
 
-# ---------------------------------------------------
-# REGISTER
-# ---------------------------------------------------
-
-def register():
-
-    st.title("📝 Register")
-
-    username = st.text_input("New Username")
-    password = st.text_input("New Password", type="password")
-
-    if st.button("Create Account"):
-
-        users = load_users()
-
-        if username in users:
-            st.error("User exists")
-        else:
-
-            users[username] = hash_password(password)
-            save_users(users)
-
-            st.success("Created")
-
-
-# ---------------------------------------------------
+# ============================================================
 # CHANGE PASSWORD
-# ---------------------------------------------------
+# ============================================================
 
 def change_password():
 
-    st.title("🔑 Change Password")
+    st.subheader("Change Password")
 
-    old = st.text_input("Old Password", type="password")
-    new = st.text_input("New Password", type="password")
+    current = st.text_input("Current Password", type="password", key="c1")
 
-    if st.button("Change"):
+    new = st.text_input("New Password", type="password", key="c2")
+
+    confirm = st.text_input("Confirm Password", type="password", key="c3")
+
+    if st.button("Update Password"):
 
         users = load_users()
 
-        if check_password(old, users[st.session_state.user]):
+        if check_password(current, users[st.session_state.user]["password"]):
 
-            users[st.session_state.user] = hash_password(new)
-            save_users(users)
+            if new == confirm:
 
-            st.success("Changed")
+                users[st.session_state.user]["password"] = hash_password(new)
+
+                save_users(users)
+
+                st.success("Password Updated")
+
+            else:
+
+                st.error("Mismatch")
 
         else:
-            st.error("Wrong password")
+
+            st.error("Wrong Password")
 
 
-# ---------------------------------------------------
-# STOCK LIST (SAME)
-# ---------------------------------------------------
+# ============================================================
+# ADMIN PANEL
+# ============================================================
+
+def admin_panel():
+
+    st.subheader("Admin Panel")
+
+    new_user = st.text_input("New User", key="newuser")
+
+    new_pass = st.text_input("New Password", type="password", key="newpass")
+
+    if st.button("Add User"):
+
+        users = load_users()
+
+        users[new_user] = {
+
+            "password": hash_password(new_pass),
+            "role": "user"
+
+        }
+
+        save_users(users)
+
+        st.success("User Added")
+
+
+# ============================================================
+# STOCK LIST (YOUR ORIGINAL)
+# ============================================================
 
 stocks = {
 
-"RELIANCE.NS": 2500,
-"HDFCBANK.NS": 1500,
-"ICICIBANK.NS": 900,
-"INFY.NS": 1400,
-"TCS.NS": 3300,
+"RELIANCE.NS": 2450,
+"HDFCBANK.NS": 1520,
+"INFY.NS": 1450,
+"ICICIBANK.NS": 950,
 
 }
 
+stockstar = [
 
-stockstar = {
+"RELIANCE.NS",
+"INFY.NS"
 
-"RELIANCE.NS": 2400,
-"HDFCBANK.NS": 1400,
-
-}
+]
 
 
-# ---------------------------------------------------
-# DATA FETCH
-# ---------------------------------------------------
+# ============================================================
+# DASHBOARD
+# ============================================================
 
-def get_data():
+def dashboard():
+
+    st.title("📊 Live Stock Dashboard")
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("🔄 Refresh"):
+        st.rerun()
+
+    sort = col2.selectbox("Sort", ["None", "P2L %"])
 
     data = []
 
-    for s, buy in stocks.items():
+    for s, price in stocks.items():
 
-        price = yf.Ticker(s).history(period="1d")["Close"].iloc[-1]
+        try:
 
-        pnl = price - buy
-        percent = pnl / buy * 100
+            live = yf.download(
+                s,
+                period="1d",
+                interval="1m",
+                progress=False
+            )["Close"].iloc[-1]
 
-        data.append([s, buy, price, pnl, percent])
+        except:
 
-    df = pd.DataFrame(data, columns=["Stock","Buy","Price","P2L","%"])
+            live = price
 
-    return df
+        pnl = live - price
+
+        pnl_pct = pnl / price * 100
+
+        data.append([
+
+            s,
+            price,
+            live,
+            round(pnl, 2),
+            round(pnl_pct, 2)
+
+        ])
+
+    df = pd.DataFrame(
+
+        data,
+        columns=[
+            "Stock",
+            "Buy",
+            "Live",
+            "P2L",
+            "P2L %"
+        ]
+
+    )
+
+    if sort == "P2L %":
+
+        df = df.sort_values("P2L %")
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        height=500
+    )
+
+    avg = df["P2L %"].mean()
+
+    st.subheader(f"Average P2L : {round(avg,2)} %")
+
+    st.subheader("⭐ StockStar")
+
+    st.write(stockstar)
 
 
-# ---------------------------------------------------
-# DASHBOARD
-# ---------------------------------------------------
+# ============================================================
+# MAIN
+# ============================================================
 
-def stock_dashboard():
+if not st.session_state.logged:
 
-    st.title("📊 Live Prices with P2L")
-
-    st.write(f"Welcome **{st.session_state.user}**")
-
-    col1,col2,col3 = st.columns(3)
-
-    refresh = col1.button("🔄 Refresh")
-
-    sort = col2.button("Sort by P2L")
-
-    logout = col3.button("Logout")
-
-
-    if logout:
-
-        st.session_state.logged_in=False
-        st.rerun()
-
-
-    df = get_data()
-
-
-    if sort:
-        df = df.sort_values("P2L", ascending=False)
-
-
-    st.dataframe(df, use_container_width=True)
-
-
-    # Bottom Average
-
-    avg = df["P2L"].mean()
-
-    st.write("")
-
-    st.subheader(f"Average P2L : {avg:.2f}")
-
-
-# ---------------------------------------------------
-# MAIN CONTROL
-# ---------------------------------------------------
-
-if st.session_state.logged_in:
-
-    menu = st.sidebar.selectbox("Menu",
-
-    ["Dashboard","Change Password"])
-
-    if menu=="Dashboard":
-        stock_dashboard()
-
-    if menu=="Change Password":
-        change_password()
+    login()
 
 else:
 
-    menu = st.sidebar.selectbox("Menu",
+    st.sidebar.write(f"Welcome {st.session_state.user}")
 
-    ["Login","Register"])
+    if st.sidebar.button("Logout"):
 
-    if menu=="Login":
-        login()
+        st.session_state.logged = False
 
-    if menu=="Register":
-        register()
+        st.rerun()
+
+    change_password()
+
+    if st.session_state.role == "admin":
+
+        admin_panel()
+
+    dashboard()
