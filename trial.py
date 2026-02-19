@@ -1,5 +1,5 @@
 # ---------------------------------------------------
-# INSTALL
+# INSTALL (Run once in terminal)
 # pip install streamlit yfinance pandas requests
 # ---------------------------------------------------
 
@@ -20,27 +20,50 @@ BOT_TOKEN = "YOUR_TOKEN"
 CHAT_ID = "YOUR_CHAT_ID"
 
 # ---------------------------------------------------
+# FLASHING CSS
+
+st.markdown("""
+<style>
+@keyframes flash {
+    0% { opacity: 1; }
+    50% { opacity: 0.2; }
+    100% { opacity: 1; }
+}
+table {
+    background-color:#0e1117;
+    color:white;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------
 # STOCKSTAR INPUT
 
 stockstar_input = st.text_input(
-    "⭐ StockStar",
-    "OIL.NS, BSE.NS, HEROMOTOCO.NS, HINDALCO.NS"
+    "⭐ StockStar (Comma Separated)",
+    "BOSCHLTD.NS, BSE.NS, HEROMOTOCO.NS, HINDALCO.NS, HINDZINC.NS, M&M.NS, MUTHOOTFIN.NS, PIIND.NS"
 ).upper()
 
 stockstar_list = [
     s.strip().replace(".NS", "")
     for s in stockstar_input.split(",")
-    if s.strip()
+    if s.strip() != ""
 ]
 
 # ---------------------------------------------------
 # SOUND SETTINGS
 
-sound_alert = st.toggle("🔊 Sound Alert", False)
-telegram_alert = st.toggle("📲 Telegram Alert", False)
+sound_alert = st.toggle("🔊 Enable Alert Sound for -5% Green Stocks", value=False)
+
+telegram_alert = st.toggle("📲 Enable Telegram Alert for Green Flashing", value=False)
+
+# ---------------------------------------------------
+# SOUND UPLOAD
+
+st.markdown("### 🎵 Alert Sound Settings")
 
 uploaded_sound = st.file_uploader(
-    "Upload Sound",
+    "Upload Your Custom Sound (.mp3 or .wav)",
     type=["mp3", "wav"]
 )
 
@@ -50,35 +73,77 @@ DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-previ
 # STOCK LIST
 
 stocks = {
-
-    "OIL.NS": 451.02,
+    "ADANIENT.NS": 2092.68,
+    "ADANIPORTS.NS": 1487.82,
+    "AMBUJACEM.NS": 510.63,
+    "AXISBANK.NS": 1309.52,
+    "BAJAJHFL.NS": 88.23,
+    "BHEL.NS": 251.74,
+    "BOSCHLTD.NS": 35043.90,
+    "BPCL.NS": 367.20,
     "BSE.NS": 2718.29,
+    "CANBK.NS": 139.45,
+    "COALINDIA.NS": 404.57,
+    "COFORGE.NS": 1330.67,
+    "DLF.NS": 620.45,
+    "DMART.NS": 3823.09,
+    "GMRAIRPORT.NS": 93.06,
+    "GODREJCP.NS": 1165.94,
+    "HCLTECH.NS": 1392.51,
+    "HDFCBANK.NS": 896.50,
     "HEROMOTOCO.NS": 5419.27,
-    "HINDALCO.NS": 878.80
-
+    "HINDALCO.NS": 878.80,
+    "HINDUNILVR.NS": 2282.38,
+    "HINDZINC.NS": 573.56,
+    "IDFCFIRSTB.NS": 79.61,
+    "INFY.NS": 1278.30,
+    "IRCTC.NS": 603.12,
+    "IRFC.NS": 110.02,
+    "JIOFIN.NS": 258.25,
+    "JSWENERGY.NS": 466.51,
+    "JUBLFOOD.NS": 522.62,
+    "KOTAKBANK.NS": 416.16,
+    "LTIM.NS": 4975.53,
+    "M&M.NS": 3444.69,
+    "MPHASIS.NS": 2349.31,
+    "MUTHOOTFIN.NS": 3431.50,
+    "NAUKRI.NS": 1098.68,
+    "NHPC.NS": 74.28,
+    "OFSS.NS": 6384.00,
+    "OIL.NS": 451.02,
+    "PAGEIND.NS": 33063.85,
+    "PERSISTENT.NS": 5196.98,
+    "PFC.NS": 395.26,
+    "PIIND.NS": 2999.93,
+    "PNB.NS": 116.96,
+    "POLYCAB.NS": 7498.32,
+    "PRESTIGE.NS": 1474.69,
+    "RECLTD.NS": 338.10,
+    "RELIANCE.NS": 1402.25,
+    "SHREECEM.NS": 25621.25,
+    "SOLARINDS.NS": 12787.74,
+    "SRF.NS": 2682.32,
+    "SUZLON.NS": 45.11,
+    "TATACONSUM.NS": 1111.51,
+    "TATASTEEL.NS": 199.55,
+    "TCS.NS": 2578.54,
+    "UPL.NS": 712.82,
+    "VBL.NS": 443.37,
+    "YESBANK.NS": 20.60,
 }
 
 # ---------------------------------------------------
-# FETCH DATA FUNCTION
+# FETCH DATA
 
 @st.cache_data(ttl=60)
 def fetch_data():
 
     symbols = list(stocks.keys())
 
-    daily = yf.download(
-        symbols,
+    data = yf.download(
+        tickers=symbols,
         period="2d",
         interval="1d",
-        group_by="ticker",
-        progress=False,
-        threads=True
-    )
-
-    minute = yf.download(
-        symbols,
-        period="1d",
-        interval="1m",
         group_by="ticker",
         progress=False,
         threads=True
@@ -90,72 +155,34 @@ def fetch_data():
 
         try:
 
-            ref = stocks[sym]
+            ref_low = stocks[sym]
 
-            price = daily[sym]["Close"].iloc[-1]
-            prev = daily[sym]["Close"].iloc[-2]
+            price = data[sym]["Close"].iloc[-1]
+            prev_close = data[sym]["Close"].iloc[-2]
+            open_p = data[sym]["Open"].iloc[-1]
+            high = data[sym]["High"].iloc[-1]
+            low = data[sym]["Low"].iloc[-1]
 
-            openp = daily[sym]["Open"].iloc[-1]
-            high = daily[sym]["High"].iloc[-1]
-            low = daily[sym]["Low"].iloc[-1]
+            p2l = ((price - ref_low) / ref_low) * 100
+            pct_chg = ((price - prev_close) / prev_close) * 100
 
-            p2l = ((price - ref) / ref) * 100
-            chg = ((price - prev) / prev) * 100
+            # -------- RUN DOWN COLUMN ADDED --------
 
-            # -----------------------------------
-            # RunDown calculation
-            # -----------------------------------
-
-            rundown = ""
-
-            if sym in minute:
-
-                cl = minute[sym]["Close"].dropna()
-
-                if len(cl) > 5:
-
-                    peak_time = cl.idxmax()
-                    peak_price = cl.max()
-
-                    if price < peak_price:
-
-                        mins = int(
-                            (datetime.now(peak_time.tzinfo) - peak_time
-                            ).total_seconds() / 60
-                        )
-
-                        if mins > 15:
-
-                            rundown = f"🟠{mins}"
-
-                        else:
-
-                            rundown = str(mins)
+            run_down = "🟠 Run Down" if price < ref_low else ""
 
             rows.append({
-
                 "Stock": sym.replace(".NS", ""),
-
                 "P2L %": p2l,
-
                 "Price": price,
-
-                "RunDown": rundown,
-
-                "% Chg": chg,
-
-                "Low Price": ref,
-
-                "Open": openp,
-
+                "Run Down": run_down,
+                "% Chg": pct_chg,
+                "Low Price": ref_low,
+                "Open": open_p,
                 "High": high,
-
                 "Low": low
-
             })
 
         except:
-
             pass
 
     return pd.DataFrame(rows)
@@ -166,102 +193,72 @@ def fetch_data():
 col1, col2 = st.columns(2)
 
 with col1:
-
     if st.button("🔄 Refresh"):
-
         st.cache_data.clear()
         st.rerun()
 
 with col2:
-
-    sort_clicked = st.button("📈 Sort")
+    sort_clicked = st.button("📈 Sort by P2L")
 
 # ---------------------------------------------------
 # LOAD DATA
 
 df = fetch_data()
 
-if sort_clicked:
+if df.empty:
+    st.error("⚠️ No data received from Yahoo Finance.")
+    st.stop()
 
+numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
+
+for col in numeric_cols:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+if sort_clicked:
     df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# DISPLAY TABLE
+# HTML TABLE (UNCHANGED)
 
-st.dataframe(df, use_container_width=True)
+def generate_html_table(dataframe):
+
+    html = """
+    <table style="width:100%; border-collapse: collapse;">
+    <tr style="background-color:#111;">
+    """
+
+    for col in dataframe.columns:
+        html += f"<th style='padding:8px; border:1px solid #444;'>{col}</th>"
+
+    html += "</tr>"
+
+    for _, row in dataframe.iterrows():
+
+        html += "<tr>"
+
+        for col in dataframe.columns:
+
+            value = row[col]
+            style = "padding:6px; border:1px solid #444; text-align:center;"
+
+            if isinstance(value, float):
+                value = f"{value:.2f}"
+
+            html += f"<td style='{style}'>{value}</td>"
+
+        html += "</tr>"
+
+    html += "</table>"
+
+    return html
+
+st.markdown(generate_html_table(df), unsafe_allow_html=True)
 
 # ---------------------------------------------------
 # AVERAGE
 
-avg = df["P2L %"].mean()
+average_p2l = df["P2L %"].mean()
 
-st.markdown(f"### Average P2L : {avg:.2f}%")
-
-# ---------------------------------------------------
-# ALERT CHECK
-
-green = False
-
-for _, r in df.iterrows():
-
-    if r["Stock"] in stockstar_list and r["P2L %"] < -5:
-
-        green = True
-
-        stock = r["Stock"]
-        price = r["Price"]
-        p2l = r["P2L %"]
-
-# ---------------------------------------------------
-# TELEGRAM ALERT
-
-if telegram_alert and green:
-
-    msg = f"""
-
-GREEN ALERT
-
-{stock}
-
-₹{price:.2f}
-
-{p2l:.2f}%
-
-"""
-
-    requests.post(
-
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-
-        data={"chat_id": CHAT_ID, "text": msg}
-
-    )
-
-# ---------------------------------------------------
-# SOUND ALERT
-
-if sound_alert and green:
-
-    if uploaded_sound:
-
-        audio = uploaded_sound.read()
-
-        b64 = base64.b64encode(audio).decode()
-
-        st.markdown(
-
-            f'<audio autoplay src="data:audio/mp3;base64,{b64}"></audio>',
-
-            unsafe_allow_html=True
-
-        )
-
-    else:
-
-        st.markdown(
-
-            f'<audio autoplay src="{DEFAULT_SOUND_URL}"></audio>',
-
-            unsafe_allow_html=True
-
-        )
+st.markdown(
+    f"### 📊 Average P2L of All Stocks is **{average_p2l:.2f}%**"
+)
