@@ -20,216 +20,204 @@ BOT_TOKEN = "YOUR_TOKEN"
 CHAT_ID = "YOUR_CHAT_ID"
 
 # ---------------------------------------------------
-# FLASH CSS
-
-st.markdown("""
-<style>
-@keyframes flash {
-0% {opacity:1;}
-50% {opacity:0.2;}
-100% {opacity:1;}
-}
-table {background-color:#0e1117;color:white;}
-</style>
-""", unsafe_allow_html=True)
-
-# ---------------------------------------------------
 # STOCKSTAR INPUT
 
 stockstar_input = st.text_input(
-"⭐ StockStar",
-"BOSCHLTD.NS, BSE.NS, HEROMOTOCO.NS, HINDALCO.NS, HINDZINC.NS, M&M.NS, MUTHOOTFIN.NS, PIIND.NS"
+    "⭐ StockStar",
+    "OIL.NS, BSE.NS, HEROMOTOCO.NS, HINDALCO.NS"
 ).upper()
 
 stockstar_list = [
-s.strip().replace(".NS","")
-for s in stockstar_input.split(",")
-if s.strip()
+    s.strip().replace(".NS", "")
+    for s in stockstar_input.split(",")
+    if s.strip()
 ]
 
 # ---------------------------------------------------
-# SOUND
+# SOUND SETTINGS
 
 sound_alert = st.toggle("🔊 Sound Alert", False)
-
 telegram_alert = st.toggle("📲 Telegram Alert", False)
 
-uploaded_sound = st.file_uploader("Upload Sound", type=["mp3","wav"])
+uploaded_sound = st.file_uploader(
+    "Upload Sound",
+    type=["mp3", "wav"]
+)
 
-DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
 # STOCK LIST
 
-stocks={
-"OIL.NS":451.02,
-"BSE.NS":2718.29,
-"HEROMOTOCO.NS":5419.27,
-"HINDALCO.NS":878.80,
-"HINDZINC.NS":573.56,
-"M&M.NS":3444.69,
-"MUTHOOTFIN.NS":3431.50,
-"PIIND.NS":2999.93
+stocks = {
+
+    "OIL.NS": 451.02,
+    "BSE.NS": 2718.29,
+    "HEROMOTOCO.NS": 5419.27,
+    "HINDALCO.NS": 878.80
+
 }
 
 # ---------------------------------------------------
-# FETCH DATA FAST VERSION
+# FETCH DATA FUNCTION
 
 @st.cache_data(ttl=60)
 def fetch_data():
 
-symbols=list(stocks.keys())
+    symbols = list(stocks.keys())
 
-daily=yf.download(
-symbols,
-period="2d",
-interval="1d",
-group_by="ticker",
-progress=False,
-threads=True
-)
+    daily = yf.download(
+        symbols,
+        period="2d",
+        interval="1d",
+        group_by="ticker",
+        progress=False,
+        threads=True
+    )
 
-minute=yf.download(
-symbols,
-period="1d",
-interval="1m",
-group_by="ticker",
-progress=False,
-threads=True
-)
+    minute = yf.download(
+        symbols,
+        period="1d",
+        interval="1m",
+        group_by="ticker",
+        progress=False,
+        threads=True
+    )
 
-rows=[]
+    rows = []
 
-for sym in symbols:
+    for sym in symbols:
 
-try:
+        try:
 
-ref=stocks[sym]
+            ref = stocks[sym]
 
-price=daily[sym]["Close"].iloc[-1]
-prev=daily[sym]["Close"].iloc[-2]
+            price = daily[sym]["Close"].iloc[-1]
+            prev = daily[sym]["Close"].iloc[-2]
 
-openp=daily[sym]["Open"].iloc[-1]
-high=daily[sym]["High"].iloc[-1]
-low=daily[sym]["Low"].iloc[-1]
+            openp = daily[sym]["Open"].iloc[-1]
+            high = daily[sym]["High"].iloc[-1]
+            low = daily[sym]["Low"].iloc[-1]
 
-p2l=((price-ref)/ref)*100
-chg=((price-prev)/prev)*100
+            p2l = ((price - ref) / ref) * 100
+            chg = ((price - prev) / prev) * 100
 
-# ---------- RunDown Logic ----------
+            # -----------------------------------
+            # RunDown calculation
+            # -----------------------------------
 
-rundown=""
+            rundown = ""
 
-if sym in minute:
+            if sym in minute:
 
-cl=minute[sym]["Close"].dropna()
+                cl = minute[sym]["Close"].dropna()
 
-if len(cl)>5:
+                if len(cl) > 5:
 
-peak_time=cl.idxmax()
+                    peak_time = cl.idxmax()
+                    peak_price = cl.max()
 
-peak_price=cl.max()
+                    if price < peak_price:
 
-if price<peak_price:
+                        mins = int(
+                            (datetime.now(peak_time.tzinfo) - peak_time
+                            ).total_seconds() / 60
+                        )
 
-mins=int(
-(datetime.now(peak_time.tzinfo)-peak_time)
-.total_seconds()/60
-)
+                        if mins > 15:
 
-if mins>15:
+                            rundown = f"🟠{mins}"
 
-rundown=f"🟠{mins}"
+                        else:
 
-else:
+                            rundown = str(mins)
 
-rundown=str(mins)
+            rows.append({
 
-rows.append({
+                "Stock": sym.replace(".NS", ""),
 
-"Stock":sym.replace(".NS",""),
+                "P2L %": p2l,
 
-"P2L %":p2l,
+                "Price": price,
 
-"Price":price,
+                "RunDown": rundown,
 
-"RunDown":rundown,
+                "% Chg": chg,
 
-"% Chg":chg,
+                "Low Price": ref,
 
-"Low Price":ref,
+                "Open": openp,
 
-"Open":openp,
+                "High": high,
 
-"High":high,
+                "Low": low
 
-"Low":low
+            })
 
-})
+        except:
 
-except:
+            pass
 
-pass
-
-return pd.DataFrame(rows)
+    return pd.DataFrame(rows)
 
 # ---------------------------------------------------
 # BUTTONS
 
-c1,c2=st.columns(2)
+col1, col2 = st.columns(2)
 
-with c1:
+with col1:
 
-if st.button("🔄 Refresh"):
+    if st.button("🔄 Refresh"):
 
-st.cache_data.clear()
-st.rerun()
+        st.cache_data.clear()
+        st.rerun()
 
-with c2:
+with col2:
 
-sort_clicked=st.button("📈 Sort")
+    sort_clicked = st.button("📈 Sort")
 
 # ---------------------------------------------------
+# LOAD DATA
 
-df=fetch_data()
+df = fetch_data()
 
 if sort_clicked:
 
-df=df.sort_values("P2L %",ascending=False)
+    df = df.sort_values("P2L %", ascending=False)
 
 # ---------------------------------------------------
-# DISPLAY
+# DISPLAY TABLE
 
-st.dataframe(df,use_container_width=True)
+st.dataframe(df, use_container_width=True)
 
 # ---------------------------------------------------
 # AVERAGE
 
-avg=df["P2L %"].mean()
+avg = df["P2L %"].mean()
 
 st.markdown(f"### Average P2L : {avg:.2f}%")
 
 # ---------------------------------------------------
 # ALERT CHECK
 
-green=False
+green = False
 
-for _,r in df.iterrows():
+for _, r in df.iterrows():
 
-if r["Stock"] in stockstar_list and r["P2L %"]<-5:
+    if r["Stock"] in stockstar_list and r["P2L %"] < -5:
 
-green=True
+        green = True
 
-stock=r["Stock"]
-price=r["Price"]
-p2l=r["P2L %"]
+        stock = r["Stock"]
+        price = r["Price"]
+        p2l = r["P2L %"]
 
 # ---------------------------------------------------
-# TELEGRAM
+# TELEGRAM ALERT
 
 if telegram_alert and green:
 
-msg=f"""
+    msg = f"""
 
 GREEN ALERT
 
@@ -241,39 +229,39 @@ GREEN ALERT
 
 """
 
-requests.post(
+    requests.post(
 
-f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
 
-data={"chat_id":CHAT_ID,"text":msg}
+        data={"chat_id": CHAT_ID, "text": msg}
 
-)
+    )
 
 # ---------------------------------------------------
-# SOUND
+# SOUND ALERT
 
 if sound_alert and green:
 
-if uploaded_sound:
+    if uploaded_sound:
 
-audio=uploaded_sound.read()
+        audio = uploaded_sound.read()
 
-b64=base64.b64encode(audio).decode()
+        b64 = base64.b64encode(audio).decode()
 
-st.markdown(
+        st.markdown(
 
-f'<audio autoplay src="data:audio/mp3;base64,{b64}"></audio>',
+            f'<audio autoplay src="data:audio/mp3;base64,{b64}"></audio>',
 
-unsafe_allow_html=True
+            unsafe_allow_html=True
 
-)
+        )
 
-else:
+    else:
 
-st.markdown(
+        st.markdown(
 
-f'<audio autoplay src="{DEFAULT_SOUND_URL}"></audio>',
+            f'<audio autoplay src="{DEFAULT_SOUND_URL}"></audio>',
 
-unsafe_allow_html=True
+            unsafe_allow_html=True
 
-)
+        )
