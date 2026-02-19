@@ -1,6 +1,6 @@
 # ---------------------------------------------------
-# INSTALL
-# pip install streamlit yfinance pandas requests bcrypt PyGithub
+# INSTALL (Run once in terminal)
+# pip install streamlit yfinance pandas requests
 # ---------------------------------------------------
 
 import streamlit as st
@@ -8,423 +8,265 @@ import yfinance as yf
 import pandas as pd
 import base64
 import requests
-import bcrypt
-import json
-import random
-import time
 from datetime import datetime
-from github import Github
+
+st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
+st.title("📊 Live Prices with P2L")
 
 # ---------------------------------------------------
 # TELEGRAM SETTINGS
 
-BOT_TOKEN = "PASTE_YOUR_BOT_TOKEN"
-CHAT_ID = "PASTE_YOUR_CHAT_ID"
+BOT_TOKEN = "8371973661:AAFTOjh53yKmmgv3eXqD5wf8Ki6XXrZPq2c"
+CHAT_ID = "5355913841"
 
 # ---------------------------------------------------
-# GITHUB SETTINGS
+# FLASHING CSS
 
-GITHUB_TOKEN = "PASTE_GITHUB_TOKEN"
-REPO_NAME = "USERNAME/REPO"
-FILE_PATH = "users.json"
-
-# ---------------------------------------------------
-# PAGE CONFIG
-
-st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
-
-# ---------------------------------------------------
-# LOAD USERS
-
-def load_users():
-
-    g = Github(GITHUB_TOKEN)
-    repo = g.get_repo(REPO_NAME)
-
-    try:
-
-        file = repo.get_contents(FILE_PATH)
-        return json.loads(file.decoded_content.decode())
-
-    except:
-
-        return {}
+st.markdown("""
+<style>
+@keyframes flash {
+    0% { opacity: 1; }
+    50% { opacity: 0.2; }
+    100% { opacity: 1; }
+}
+table {
+    background-color:#0e1117;
+    color:white;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# SAVE USERS
+# STOCKSTAR INPUT
 
-def save_users(users):
+stockstar_input = st.text_input(
+    "⭐ StockStar (Comma Separated)",
+    "BOSCHLTD.NS, BSE.NS, HEROMOTOCO.NS, HINDALCO.NS, HINDZINC.NS, M&M.NS, MUTHOOTFIN.NS, PIIND.NS"
+).upper()
 
-    g = Github(GITHUB_TOKEN)
-    repo = g.get_repo(REPO_NAME)
-
-    content = json.dumps(users, indent=4)
-
-    try:
-
-        file = repo.get_contents(FILE_PATH)
-
-        repo.update_file(
-            FILE_PATH,
-            "update users",
-            content,
-            file.sha
-        )
-
-    except:
-
-        repo.create_file(
-            FILE_PATH,
-            "create users",
-            content
-        )
+stockstar_list = [
+    s.strip().replace(".NS", "")
+    for s in stockstar_input.split(",")
+    if s.strip() != ""
+]
 
 # ---------------------------------------------------
-# PASSWORD FUNCTIONS
+# SOUND SETTINGS
 
-def hash_password(password):
-
-    return bcrypt.hashpw(
-        password.encode(),
-        bcrypt.gensalt()
-    ).decode()
-
-
-def check_password(password, hashed):
-
-    return bcrypt.checkpw(
-        password.encode(),
-        hashed.encode()
-    )
+sound_alert = st.toggle("🔊 Enable Alert Sound for -5% Green Stocks", value=False)
 
 # ---------------------------------------------------
-# OTP FUNCTION
+# TELEGRAM ALERT TOGGLE
 
-def send_otp():
-
-    otp = str(random.randint(100000, 999999))
-
-    st.session_state.reset_otp = otp
-
-    st.session_state.otp_time = time.time()
-
-    requests.post(
-
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-
-        data={
-            "chat_id": CHAT_ID,
-            "text": f"🔐 Password Reset OTP: {otp}"
-        }
-    )
+telegram_alert = st.toggle("📲 Enable Telegram Alert for Green Flashing", value=False)
 
 # ---------------------------------------------------
-# SESSION STATE
+# SOUND UPLOAD
 
-if "logged_in" not in st.session_state:
+st.markdown("### 🎵 Alert Sound Settings")
 
-    st.session_state.logged_in = False
+uploaded_sound = st.file_uploader(
+    "Upload Your Custom Sound (.mp3 or .wav)",
+    type=["mp3", "wav"]
+)
 
-if "user" not in st.session_state:
-
-    st.session_state.user = ""
-
-if "role" not in st.session_state:
-
-    st.session_state.role = ""
+DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
-# LOGIN
-
-def login():
-
-    st.title("🔐 Login")
-
-    users = load_users()
-
-    username = st.text_input("User ID")
-
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-
-        if username in users and check_password(password, users[username]["password"]):
-
-            st.session_state.logged_in = True
-            st.session_state.user = username
-            st.session_state.role = users[username]["role"]
-
-            st.rerun()
-
-        else:
-
-            st.error("Invalid Login")
-
-# ---------------------------------------------------
-# OTP RESET
-
-    st.markdown("---")
-    st.subheader("Forgot Password")
-
-    reset_user = st.text_input("User ID", key="reset_user")
-
-    if st.button("Send OTP"):
-
-        if reset_user in users:
-
-            send_otp()
-
-            st.success("OTP sent to Telegram")
-
-        else:
-
-            st.error("User not found")
-
-    otp = st.text_input("Enter OTP")
-
-    new_pass = st.text_input("New Password", type="password")
-
-    if st.button("Reset Password"):
-
-        if "reset_otp" not in st.session_state:
-
-            st.error("Send OTP first")
-
-        elif time.time() - st.session_state.otp_time > 300:
-
-            st.error("OTP expired")
-
-        elif otp != st.session_state.reset_otp:
-
-            st.error("Wrong OTP")
-
-        else:
-
-            users[reset_user]["password"] = hash_password(new_pass)
-
-            save_users(users)
-
-            st.success("Password Reset Successful")
-
-# ---------------------------------------------------
-# CHANGE PASSWORD
-
-def change_password():
-
-    st.subheader("Change Password")
-
-    users = load_users()
-
-    current = st.text_input("Current Password", type="password")
-
-    new = st.text_input("New Password", type="password")
-
-    confirm = st.text_input("Confirm Password", type="password")
-
-    if st.button("Update Password"):
-
-        if not check_password(current, users[st.session_state.user]["password"]):
-
-            st.error("Wrong Password")
-
-        elif new != confirm:
-
-            st.error("Mismatch")
-
-        else:
-
-            users[st.session_state.user]["password"] = hash_password(new)
-
-            save_users(users)
-
-            st.success("Updated")
-
-# ---------------------------------------------------
-# ADMIN PANEL
-
-def admin_panel():
-
-    st.subheader("Admin Panel")
-
-    users = load_users()
-
-    st.table(list(users.keys()))
-
-# ADD USER
-
-    new_user = st.text_input("New User")
-
-    new_pass = st.text_input("New Password", type="password")
-
-    if st.button("Add User"):
-
-        users[new_user] = {
-
-            "password": hash_password(new_pass),
-
-            "role": "user"
-        }
-
-        save_users(users)
-
-        st.success("User Added")
-
-        st.rerun()
-
-# DELETE USER SAFE
-
-    delete = st.selectbox("Delete User", list(users.keys()))
-
-    confirm = st.checkbox("Confirm Delete")
-
-    if st.button("Delete"):
-
-        if delete == "admin":
-
-            st.error("Cannot delete admin")
-
-        elif confirm:
-
-            del users[delete]
-
-            save_users(users)
-
-            st.success("Deleted")
-
-            st.rerun()
-
-# ---------------------------------------------------
-# STOCK DASHBOARD
-
-def dashboard():
-
-    st.title("📊 Live Prices with P2L")
-
-# STOCKSTAR
-
-    stockstar_input = st.text_input(
-        "⭐ StockStar",
-        "DLF.NS, CANBK.NS"
-    ).upper()
-
-    stockstar_list = [
-
-        s.replace(".NS","").strip()
-
-        for s in stockstar_input.split(",")
-    ]
-
-# SOUND
-
-    sound = st.toggle("Sound Alert")
-
-# TELEGRAM
-
-    telegram = st.toggle("Telegram Alert")
-
 # STOCK LIST
 
-    stocks = {
+stocks = {
+    "ADANIENT.NS": 2092.68,
+    "ADANIPORTS.NS": 1487.82,
+    "AMBUJACEM.NS": 510.63,
+    "AXISBANK.NS": 1309.52,
+    "BAJAJHFL.NS": 88.23,
+    "BHEL.NS": 251.74,
+    "BOSCHLTD.NS": 35043.90,
+    "BPCL.NS": 367.20,
+    "BSE.NS": 2718.29,
+    "CANBK.NS": 139.45,
+    "COALINDIA.NS": 404.57,
+    "COFORGE.NS": 1330.67,
+    "DLF.NS": 620.45,
+    "DMART.NS": 3823.09,
+    "GMRAIRPORT.NS": 93.06,
+    "GODREJCP.NS": 1165.94,
+    "HCLTECH.NS": 1392.51,
+    "HDFCBANK.NS": 896.50,
+    "HEROMOTOCO.NS": 5419.27,
+    "HINDALCO.NS": 878.80,
+    "HINDUNILVR.NS": 2282.38,
+    "HINDZINC.NS": 573.56,
+    "IDFCFIRSTB.NS": 79.61,
+    "INFY.NS": 1278.30,
+    "IRCTC.NS": 603.12,
+    "IRFC.NS": 110.02,
+    "JIOFIN.NS": 258.25,
+    "JSWENERGY.NS": 466.51,
+    "JUBLFOOD.NS": 522.62,
+    "KOTAKBANK.NS": 416.16,
+    "LTIM.NS": 4975.53,
+    "M&M.NS": 3444.69,
+    "MPHASIS.NS": 2349.31,
+    "MUTHOOTFIN.NS": 3431.50,
+    "NAUKRI.NS": 1098.68,
+    "NHPC.NS": 74.28,
+    "OFSS.NS": 6384.00,
+    "OIL.NS": 451.02,
+    "PAGEIND.NS": 33063.85,
+    "PERSISTENT.NS": 5196.98,
+    "PFC.NS": 395.26,
+    "PIIND.NS": 2999.93,
+    "PNB.NS": 116.96,
+    "POLYCAB.NS": 7498.32,
+    "PRESTIGE.NS": 1474.69,
+    "RECLTD.NS": 338.10,
+    "RELIANCE.NS": 1402.25,
+    "SHREECEM.NS": 25621.25,
+    "SOLARINDS.NS": 12787.74,
+    "SRF.NS": 2682.32,
+    "SUZLON.NS": 45.11,
+    "TATACONSUM.NS": 1111.51,
+    "TATASTEEL.NS": 199.55,
+    "TCS.NS": 2578.54,
+    "UPL.NS": 712.82,
+    "VBL.NS": 443.37,
+    "YESBANK.NS": 20.60,
+}
 
-        "CANBK.NS":142.93,
-        "DLF.NS":646.85
+# ---------------------------------------------------
+# FETCH DATA
 
-    }
+@st.cache_data(ttl=60)
+def fetch_data():
 
-# FETCH
+    symbols = list(stocks.keys())
 
-    @st.cache_data(ttl=60)
-    def fetch():
+    data_daily = yf.download(
+        tickers=symbols,
+        period="2d",
+        interval="1d",
+        group_by="ticker",
+        progress=False,
+        threads=True
+    )
 
-        data = yf.download(
+    rows = []
 
-            list(stocks.keys()),
-            period="2d",
-            interval="1d",
-            group_by="ticker"
-        )
+    for sym in symbols:
 
-        rows=[]
+        try:
 
-        for s in stocks:
+            ref_low = stocks[sym]
 
-            price=data[s]["Close"].iloc[-1]
+            price = data_daily[sym]["Close"].iloc[-1]
+            prev_close = data_daily[sym]["Close"].iloc[-2]
+            open_p = data_daily[sym]["Open"].iloc[-1]
+            high = data_daily[sym]["High"].iloc[-1]
+            low = data_daily[sym]["Low"].iloc[-1]
 
-            p2l=((price-stocks[s])/stocks[s])*100
+            p2l = ((price - ref_low) / ref_low) * 100
+            pct_chg = ((price - prev_close) / prev_close) * 100
+
+
+            # RUN DOWN CALCULATION
+
+            minute_data = yf.download(
+                tickers=sym,
+                period="1d",
+                interval="1m",
+                progress=False
+            )
+
+            rundown = ""
+
+            if not minute_data.empty:
+
+                last_touch = None
+
+                for i in range(len(minute_data)-1, -1, -1):
+
+                    if minute_data["Low"].iloc[i] <= ref_low:
+
+                        last_touch = minute_data.index[i]
+                        break
+
+
+                if last_touch:
+
+                    minutes = int(
+                        (datetime.now(last_touch.tzinfo) - last_touch
+                        ).total_seconds() / 60
+                    )
+
+                    if minutes > 15:
+
+                        rundown = f"🟠{minutes}"
+
+                    else:
+
+                        rundown = str(minutes)
+
 
             rows.append({
 
-                "Stock":s.replace(".NS",""),
-                "Price":price,
-                "P2L %":p2l
+                "Stock": sym.replace(".NS", ""),
+                "P2L %": p2l,
+                "Price": price,
+                "RunDown": rundown,
+                "% Chg": pct_chg,
+                "Low Price": ref_low,
+                "Open": open_p,
+                "High": high,
+                "Low": low
             })
 
-        return pd.DataFrame(rows)
+        except:
+            pass
 
-# BUTTON
-
-    col1,col2=st.columns(2)
-
-    with col1:
-
-        if st.button("Refresh"):
-
-            st.cache_data.clear()
-
-            st.rerun()
-
-    with col2:
-
-        sort=st.button("Sort")
-
-# LOAD
-
-    df=fetch()
-
-    if sort:
-
-        df=df.sort_values("P2L %")
-
-# SHOW
-
-    st.dataframe(df)
-
-# AVG
-
-    st.write(
-
-        "Average:",
-
-        round(df["P2L %"].mean(),2)
-
-    )
+    return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# MAIN
+# BUTTONS
 
-if not st.session_state.logged_in:
+col1, col2 = st.columns(2)
 
-    login()
-
-else:
-
-    st.sidebar.write(
-
-        "Welcome",
-
-        st.session_state.user
-    )
-
-    if st.sidebar.button("Logout"):
-
-        st.session_state.logged_in=False
-
+with col1:
+    if st.button("🔄 Refresh"):
+        st.cache_data.clear()
         st.rerun()
 
-    change_password()
+with col2:
+    sort_clicked = st.button("📈 Sort by P2L")
 
-    if st.session_state.role=="admin":
+# ---------------------------------------------------
+# LOAD DATA
 
-        admin_panel()
+df = fetch_data()
 
-    dashboard()
+if df.empty:
+    st.error("⚠️ No data received")
+    st.stop()
+
+numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
+
+for col in numeric_cols:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+if sort_clicked:
+    df = df.sort_values("P2L %", ascending=False)
+
+# ---------------------------------------------------
+# TABLE
+
+st.dataframe(df, use_container_width=True)
+
+# ---------------------------------------------------
+# AVERAGE
+
+average_p2l = df["P2L %"].mean()
+
+st.markdown(
+    f"### 📊 Average P2L of All Stocks is **{average_p2l:.2f}%**"
+)
