@@ -62,6 +62,7 @@ uploaded_sound = st.file_uploader(
     "Upload Your Custom Sound (.mp3 or .wav)",
     type=["mp3", "wav"]
 )
+
 DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
@@ -132,26 +133,30 @@ stocks = {
 }
 
 # ---------------------------------------------------
-# RUN DOWN MEMORY
+# SESSION MEMORY
 if "rundown_times" not in st.session_state:
-    st.session_state.rundown_times = {s.replace(".NS",""): None for s in stocks.keys()}
+
+    st.session_state.rundown_times = {}
 
 # ---------------------------------------------------
-# FETCH LIVE DATA (FIXED)
+# FETCH DATA
 def fetch_data():
 
     symbols = list(stocks.keys())
 
     data = yf.download(
+
         tickers=symbols,
         period="1d",
         interval="1m",
         group_by="ticker",
         progress=False,
         threads=True
+
     )
 
     rows = []
+
     current_time = datetime.now()
 
     for sym in symbols:
@@ -161,86 +166,99 @@ def fetch_data():
             ref_low = stocks[sym]
 
             price = data[sym]["Close"].dropna().iloc[-1]
+
             prev_close = data[sym]["Close"].dropna().iloc[0]
+
             open_p = data[sym]["Open"].dropna().iloc[0]
+
             high = data[sym]["High"].max()
+
             low = data[sym]["Low"].min()
 
             p2l = ((price - ref_low) / ref_low) * 100
+
             pct_chg = ((price - prev_close) / prev_close) * 100
 
             stock_key = sym.replace(".NS","")
 
+            # ---------------- RUN DOWN FINAL ----------------
+
+            start_time = st.session_state.rundown_times.get(stock_key)
+
             if price < ref_low:
 
-                if st.session_state.rundown_times[stock_key] is None:
+                if start_time is None:
 
                     st.session_state.rundown_times[stock_key] = current_time
 
-                down_time = int(
-                    (current_time - st.session_state.rundown_times[stock_key]).total_seconds() // 60
-                )
+                    down_time = 0
+
+                else:
+
+                    down_time = int(
+
+                        (current_time - start_time).total_seconds() // 60
+
+                    )
 
             else:
 
                 st.session_state.rundown_times[stock_key] = None
+
                 down_time = 0
 
             if down_time > 15:
+
                 run_down_display = f"🟠{down_time}"
+
             else:
+
                 run_down_display = f"{down_time}"
 
             rows.append({
+
                 "Stock": stock_key,
+
                 "P2L %": p2l,
+
                 "Price": price,
+
                 "% Chg": pct_chg,
+
                 "Low Price": ref_low,
+
                 "Open": open_p,
+
                 "High": high,
+
                 "Low": low,
+
                 "Run Down": run_down_display
+
             })
 
         except:
+
             pass
 
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# BUTTONS
-col1, col2 = st.columns(2)
+# REFRESH BUTTON
 
-with col1:
-    if st.button("🔄 Refresh"):
-        st.rerun()
+if st.button("🔄 Refresh"):
 
-with col2:
-    sort_clicked = st.button("📈 Sort by P2L")
+    st.rerun()
 
 # ---------------------------------------------------
 # LOAD DATA
+
 df = fetch_data()
 
-if df.empty:
-    st.error("⚠️ No data received.")
-    st.stop()
-
-numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
-
-for col in numeric_cols:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-if sort_clicked:
-    df = df.sort_values("P2L %", ascending=False)
-
-# ---------------------------------------------------
-# TABLE DISPLAY
 st.dataframe(df, use_container_width=True)
 
 # ---------------------------------------------------
-# AVERAGE
+
 average_p2l = df["P2L %"].mean()
 
 st.markdown(f"### 📊 Average P2L of All Stocks is **{average_p2l:.2f}%**")
