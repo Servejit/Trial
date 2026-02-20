@@ -132,19 +132,20 @@ stocks = {
 }
 
 # ---------------------------------------------------
-# ALERT MEMORY FOR RUN DOWN
+# RUN DOWN MEMORY
 if "rundown_times" not in st.session_state:
     st.session_state.rundown_times = {s.replace(".NS",""): None for s in stocks.keys()}
 
 # ---------------------------------------------------
-# FETCH DATA
+# FETCH LIVE DATA (FIXED)
 def fetch_data():
 
     symbols = list(stocks.keys())
+
     data = yf.download(
         tickers=symbols,
-        period="2d",
-        interval="1d",
+        period="1d",
+        interval="1m",
         group_by="ticker",
         progress=False,
         threads=True
@@ -158,21 +159,22 @@ def fetch_data():
         try:
 
             ref_low = stocks[sym]
-            price = data[sym]["Close"].iloc[-1]
-            prev_close = data[sym]["Close"].iloc[-2]
-            open_p = data[sym]["Open"].iloc[-1]
-            high = data[sym]["High"].iloc[-1]
-            low = data[sym]["Low"].iloc[-1]
+
+            price = data[sym]["Close"].dropna().iloc[-1]
+            prev_close = data[sym]["Close"].dropna().iloc[0]
+            open_p = data[sym]["Open"].dropna().iloc[0]
+            high = data[sym]["High"].max()
+            low = data[sym]["Low"].min()
 
             p2l = ((price - ref_low) / ref_low) * 100
             pct_chg = ((price - prev_close) / prev_close) * 100
 
             stock_key = sym.replace(".NS","")
 
-            # ✅ FIXED RUN DOWN
             if price < ref_low:
 
                 if st.session_state.rundown_times[stock_key] is None:
+
                     st.session_state.rundown_times[stock_key] = current_time
 
                 down_time = int(
@@ -207,4 +209,38 @@ def fetch_data():
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# REMAINING YOUR CODE SAME
+# BUTTONS
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("🔄 Refresh"):
+        st.rerun()
+
+with col2:
+    sort_clicked = st.button("📈 Sort by P2L")
+
+# ---------------------------------------------------
+# LOAD DATA
+df = fetch_data()
+
+if df.empty:
+    st.error("⚠️ No data received.")
+    st.stop()
+
+numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
+
+for col in numeric_cols:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+if sort_clicked:
+    df = df.sort_values("P2L %", ascending=False)
+
+# ---------------------------------------------------
+# TABLE DISPLAY
+st.dataframe(df, use_container_width=True)
+
+# ---------------------------------------------------
+# AVERAGE
+average_p2l = df["P2L %"].mean()
+
+st.markdown(f"### 📊 Average P2L of All Stocks is **{average_p2l:.2f}%**")
