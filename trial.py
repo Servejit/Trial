@@ -1,19 +1,18 @@
 # ---------------------------------------------------
-# INSTALL (Run once in terminal)
-# pip install streamlit yfinance pandas requests
+# INSTALL
+# pip install streamlit yfinance pandas
 # ---------------------------------------------------
 
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import requests
 from datetime import datetime
 
 # ---------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------
 
-st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
+st.set_page_config(page_title="📊 Live Prices with P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
 
 # ---------------------------------------------------
@@ -27,7 +26,7 @@ with col1:
         st.rerun()
 
 # ---------------------------------------------------
-# SORT BUTTON
+# SORT
 # ---------------------------------------------------
 
 sort_option = col2.selectbox(
@@ -48,23 +47,18 @@ stocks = {
 }
 
 # ---------------------------------------------------
-# SESSION STATE (IMPORTANT FOR RUN DOWN)
+# SESSION STATE
 # ---------------------------------------------------
 
 if "rundown_start" not in st.session_state:
     st.session_state.rundown_start = {}
 
 # ---------------------------------------------------
-# DATA STORAGE
+# MAIN
 # ---------------------------------------------------
 
 data = []
-
 now = datetime.now()
-
-# ---------------------------------------------------
-# MAIN LOOP
-# ---------------------------------------------------
 
 for symbol, ref_price in stocks.items():
 
@@ -74,35 +68,46 @@ for symbol, ref_price in stocks.items():
     change = live_price - ref_price
     change_percent = (change / ref_price) * 100
 
-    # ---------------------------------------------------
-    # RUN DOWN LOGIC
-    # ---------------------------------------------------
+    # -----------------------------
+    # RUN DOWN CALCULATION
+    # -----------------------------
 
     if live_price < ref_price:
 
         if symbol not in st.session_state.rundown_start:
+
             st.session_state.rundown_start[symbol] = now
 
-        duration = now - st.session_state.rundown_start[symbol]
-        minutes = int(duration.total_seconds() / 60)
+        start_time = st.session_state.rundown_start[symbol]
+
+        minutes = int((now - start_time).total_seconds() / 60)
 
     else:
 
         st.session_state.rundown_start[symbol] = now
         minutes = 0
 
-    # ---------------------------------------------------
-    # 🟠 12 CONCEPT
-    # ---------------------------------------------------
+    # -----------------------------
+    # DISPLAY LOGIC (YOUR EXACT RULE)
+    # -----------------------------
 
-    if live_price < ref_price and minutes < 15:
-        rundown_display = "🟠 12"
+    if live_price < ref_price:
+
+        if minutes < 15:
+
+            rundown_display = "12"
+
+        else:
+
+            rundown_display = f"🟠{minutes}"
+
     else:
-        rundown_display = str(minutes)
 
-    # ---------------------------------------------------
-    # COLOR CONCEPT
-    # ---------------------------------------------------
+        rundown_display = "0"
+
+    # -----------------------------
+    # COLOR
+    # -----------------------------
 
     if change > 0:
         color = "🟢"
@@ -111,9 +116,9 @@ for symbol, ref_price in stocks.items():
     else:
         color = "⚪"
 
-    # ---------------------------------------------------
-    # STORE DATA
-    # ---------------------------------------------------
+    # -----------------------------
+    # STORE
+    # -----------------------------
 
     data.append({
         "Stock": symbol,
@@ -132,27 +137,24 @@ for symbol, ref_price in stocks.items():
 df = pd.DataFrame(data)
 
 # ---------------------------------------------------
-# SORTING
+# SORT
 # ---------------------------------------------------
 
 if sort_option == "Run Down 🔽":
+
     df = df.sort_values("Run Down", ascending=False)
 
 elif sort_option == "Change % 🔽":
+
     df = df.sort_values("Change %", ascending=False)
 
 # ---------------------------------------------------
-# FINAL DISPLAY
+# DISPLAY
 # ---------------------------------------------------
 
-df_display = df[[
-    "Stock",
-    "Live",
-    "Reference",
-    "Change",
-    "Change %",
-    "Run Down Display"
-]]
+df_display = df[
+    ["Stock","Live","Reference","Change","Change %","Run Down Display"]
+]
 
 df_display.columns = [
     "Stock",
@@ -163,8 +165,4 @@ df_display.columns = [
     "Run Down"
 ]
 
-st.dataframe(
-    df_display,
-    use_container_width=True,
-    hide_index=True
-)
+st.dataframe(df_display, use_container_width=True, hide_index=True)
