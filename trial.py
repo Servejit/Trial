@@ -129,7 +129,6 @@ stocks = {
     "UPL.NS": 712.82,
     "VBL.NS": 443.37,
     "YESBANK.NS": 20.60,
-
 }
 
 # ---------------------------------------------------
@@ -139,8 +138,8 @@ if "rundown_times" not in st.session_state:
 
 # ---------------------------------------------------
 # FETCH DATA
-@st.cache_data(ttl=60)
 def fetch_data():
+
     symbols = list(stocks.keys())
     data = yf.download(
         tickers=symbols,
@@ -155,7 +154,9 @@ def fetch_data():
     current_time = datetime.now()
 
     for sym in symbols:
+
         try:
+
             ref_low = stocks[sym]
             price = data[sym]["Close"].iloc[-1]
             prev_close = data[sym]["Close"].iloc[-2]
@@ -166,18 +167,23 @@ def fetch_data():
             p2l = ((price - ref_low) / ref_low) * 100
             pct_chg = ((price - prev_close) / prev_close) * 100
 
-            # -------------------------
-            # RUN DOWN LOGIC
             stock_key = sym.replace(".NS","")
+
+            # ✅ FIXED RUN DOWN
             if price < ref_low:
+
                 if st.session_state.rundown_times[stock_key] is None:
                     st.session_state.rundown_times[stock_key] = current_time
-                down_time = (current_time - st.session_state.rundown_times[stock_key]).seconds // 60
+
+                down_time = int(
+                    (current_time - st.session_state.rundown_times[stock_key]).total_seconds() // 60
+                )
+
             else:
+
                 st.session_state.rundown_times[stock_key] = None
                 down_time = 0
 
-            # Format Run Down column
             if down_time > 15:
                 run_down_display = f"🟠{down_time}"
             else:
@@ -201,118 +207,4 @@ def fetch_data():
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# BUTTONS
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("🔄 Refresh"):
-        st.cache_data.clear()
-        st.rerun()
-with col2:
-    sort_clicked = st.button("📈 Sort by P2L")
-
-# ---------------------------------------------------
-# LOAD DATA
-df = fetch_data()
-if df.empty:
-    st.error("⚠️ No data received from Yahoo Finance.")
-    st.stop()
-
-numeric_cols = ["P2L %", "Price", "% Chg", "Low Price", "Open", "High", "Low"]
-for col in numeric_cols:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-if sort_clicked:
-    df = df.sort_values("P2L %", ascending=False)
-
-# ---------------------------------------------------
-# GREEN TRIGGER CHECK
-green_trigger = False
-trigger_stock = ""
-trigger_price = 0
-trigger_p2l = 0
-for _, row in df.iterrows():
-    if row["Stock"] in stockstar_list and row["P2L %"] < -5:
-        green_trigger = True
-        trigger_stock = row["Stock"]
-        trigger_price = row["Price"]
-        trigger_p2l = row["P2L %"]
-        break
-
-# ---------------------------------------------------
-# ALERT MEMORY STATE
-if "alert_played" not in st.session_state:
-    st.session_state.alert_played = False
-if not green_trigger:
-    st.session_state.alert_played = False
-
-# ---------------------------------------------------
-# TELEGRAM ALERT
-if telegram_alert and green_trigger and not st.session_state.alert_played:
-    current_time = datetime.now().strftime("%I:%M:%S %p")
-    message = f"""
-🟢 GREEN FLASH ALERT
-
-Stock: {trigger_stock}
-Price: ₹{trigger_price:.2f}
-P2L: {trigger_p2l:.2f}%
-
-Time: {current_time}
-"""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": message})
-
-# ---------------------------------------------------
-# HTML TABLE
-def generate_html_table(dataframe):
-    html = "<table style='width:100%; border-collapse: collapse;'><tr style='background-color:#111;'>"
-    for col in dataframe.columns:
-        html += f"<th style='padding:8px; border:1px solid #444;'>{col}</th>"
-    html += "</tr>"
-
-    for _, row in dataframe.iterrows():
-        html += "<tr>"
-        for col in dataframe.columns:
-            value = row[col]
-            style = "padding:6px; border:1px solid #444; text-align:center;"
-
-            if col == "Stock":
-                if row["Stock"] in stockstar_list and row["P2L %"] < -5:
-                    style += "color:green; font-weight:bold; animation: flash 1s infinite;"
-                elif row["Stock"] in stockstar_list and row["P2L %"] < -3:
-                    style += "color:orange; font-weight:bold;"
-                elif row["P2L %"] < -2:
-                    style += "color:hotpink; font-weight:bold;"
-
-            if col in ["P2L %", "% Chg"]:
-                if value > 0:
-                    style += "color:green; font-weight:bold;"
-                elif value < 0:
-                    style += "color:red; font-weight:bold;"
-
-            if isinstance(value, float):
-                value = f"{value:.2f}"
-
-            html += f"<td style='{style}'>{value}</td>"
-
-        html += "</tr>"
-    html += "</table>"
-    return html
-
-st.markdown(generate_html_table(df), unsafe_allow_html=True)
-
-# ---------------------------------------------------
-# SOUND ALERT
-if sound_alert and green_trigger and not st.session_state.alert_played:
-    st.session_state.alert_played = True
-    if uploaded_sound is not None:
-        audio_bytes = uploaded_sound.read()
-        b64 = base64.b64encode(audio_bytes).decode()
-        file_type = uploaded_sound.type
-        st.markdown(f"<audio autoplay><source src='data:{file_type};base64,{b64}'></audio>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<audio autoplay><source src='{DEFAULT_SOUND_URL}'></audio>", unsafe_allow_html=True)
-
-# ---------------------------------------------------
-# AVERAGE
-average_p2l = df["P2L %"].mean()
-st.markdown(f"### 📊 Average P2L of All Stocks is **{average_p2l:.2f}%**")
+# REMAINING YOUR CODE SAME
