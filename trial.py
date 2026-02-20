@@ -1,5 +1,5 @@
 # ---------------------------------------------------
-# INSTALL (Run once in terminal)
+# INSTALL
 # pip install streamlit yfinance pandas requests
 # ---------------------------------------------------
 
@@ -19,7 +19,7 @@ BOT_TOKEN = "YOUR_BOT_TOKEN"
 CHAT_ID = "YOUR_CHAT_ID"
 
 # ---------------------------------------------------
-# FLASH CSS
+# CSS
 st.markdown("""
 <style>
 @keyframes flash {
@@ -48,15 +48,10 @@ if s.strip()
 ]
 
 # ---------------------------------------------------
-# SOUND
+# SOUND & TELEGRAM TOGGLES
 sound_alert = st.toggle("🔊 Enable Sound", value=False)
-
-# ---------------------------------------------------
-# TELEGRAM
 telegram_alert = st.toggle("📲 Enable Telegram", value=False)
 
-# ---------------------------------------------------
-# SOUND UPLOAD
 uploaded_sound = st.file_uploader(
 "Upload Sound",
 type=["mp3","wav"]
@@ -67,7 +62,6 @@ DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-previ
 # ---------------------------------------------------
 # STOCK LIST
 stocks = {
-
 "BSE.NS":2718.29,
 "BOSCHLTD.NS":35043.90,
 "HEROMOTOCO.NS":5419.27,
@@ -75,101 +69,90 @@ stocks = {
 "HINDZINC.NS":573.56,
 "MUTHOOTFIN.NS":3431.50,
 "PIIND.NS":2999.93
-
 }
 
 # ---------------------------------------------------
-# SESSION STATE
+# SESSION STATE FIX (INDENTATION CORRECT)
 if "rundown_start" not in st.session_state:
-
-st.session_state.rundown_start = {}
+    st.session_state.rundown_start = {}
 
 # ---------------------------------------------------
 # FETCH DATA
 @st.cache_data(ttl=60)
 def fetch():
 
-data = yf.download(
-tickers=list(stocks.keys()),
-period="2d",
-interval="1d",
-group_by="ticker",
-progress=False
-)
+    data = yf.download(
+        tickers=list(stocks.keys()),
+        period="2d",
+        interval="1d",
+        group_by="ticker",
+        progress=False
+    )
 
-rows=[]
+    rows=[]
+    now = datetime.now()
 
-now = datetime.now()
+    for symbol in stocks:
 
-for symbol in stocks:
+        try:
 
-try:
+            ref = stocks[symbol]
 
-ref = stocks[symbol]
+            price = data[symbol]["Close"].iloc[-1]
 
-price = data[symbol]["Close"].iloc[-1]
+            prev = data[symbol]["Close"].iloc[-2]
 
-prev = data[symbol]["Close"].iloc[-2]
+            openp = data[symbol]["Open"].iloc[-1]
 
-openp = data[symbol]["Open"].iloc[-1]
+            high = data[symbol]["High"].iloc[-1]
 
-high = data[symbol]["High"].iloc[-1]
+            low = data[symbol]["Low"].iloc[-1]
 
-low = data[symbol]["Low"].iloc[-1]
+            p2l=((price-ref)/ref)*100
 
-p2l=((price-ref)/ref)*100
+            chg=((price-prev)/prev)*100
 
-chg=((price-prev)/prev)*100
+            key=symbol.replace(".NS","")
 
-key=symbol.replace(".NS","")
+            # -------- RUN DOWN REAL --------
 
-# -------- RUN DOWN REAL --------
+            if price < ref:
 
-if price < ref:
+                if key not in st.session_state.rundown_start:
 
-if key not in st.session_state.rundown_start:
+                    st.session_state.rundown_start[key]=now
 
-st.session_state.rundown_start[key]=now
+                start=st.session_state.rundown_start[key]
 
-start=st.session_state.rundown_start[key]
+                minutes=int((now-start).total_seconds()/60)
 
-minutes=int((now-start).total_seconds()/60)
+                rundown=f"🟠{minutes}"
 
-rundown=f"🟠{minutes}"
+            else:
 
-else:
+                st.session_state.rundown_start[key]=now
 
-st.session_state.rundown_start[key]=now
+                rundown="0"
 
-rundown="0"
+            rows.append({
 
-rows.append({
+                "Stock":key,
+                "P2L %":p2l,
+                "Price":price,
+                "% Chg":chg,
+                "Low Price":ref,
+                "Open":openp,
+                "High":high,
+                "Low":low,
+                "Run Down":rundown
 
-"Stock":key,
+            })
 
-"P2L %":p2l,
+        except:
 
-"Price":price,
+            pass
 
-"% Chg":chg,
-
-"Low Price":ref,
-
-"Open":openp,
-
-"High":high,
-
-"Low":low,
-
-"Run Down":rundown
-
-})
-
-except:
-
-pass
-
-return pd.DataFrame(rows)
+    return pd.DataFrame(rows)
 
 # ---------------------------------------------------
 # BUTTONS
@@ -177,15 +160,15 @@ col1,col2=st.columns(2)
 
 with col1:
 
-if st.button("🔄 Refresh"):
+    if st.button("🔄 Refresh"):
 
-st.cache_data.clear()
+        st.cache_data.clear()
 
-st.rerun()
+        st.rerun()
 
 with col2:
 
-sort=st.button("📈 Sort by P2L")
+    sort=st.button("📈 Sort by P2L")
 
 # ---------------------------------------------------
 # LOAD
@@ -194,109 +177,97 @@ df=fetch()
 
 if sort:
 
-df=df.sort_values("P2L %",ascending=False)
-
-# ---------------------------------------------------
-# ALERT CHECK
-trigger=False
-
-for _,row in df.iterrows():
-
-if row["Stock"] in stockstar_list and row["P2L %"]<-5:
-
-trigger=True
-
-stock=row["Stock"]
-
-price=row["Price"]
-
-p2l=row["P2L %"]
-
-break
+    df=df.sort_values("P2L %",ascending=False)
 
 # ---------------------------------------------------
 # TELEGRAM ALERT
 
+trigger=False
+
+for _,row in df.iterrows():
+
+    if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+
+        trigger=True
+
+        stock=row["Stock"]
+
+        price=row["Price"]
+
+        p2l=row["P2L %"]
+
+        break
+
 if telegram_alert and trigger:
 
-msg=f"""
+    msg=f"{stock} Price {price} P2L {p2l:.2f}"
 
-GREEN ALERT
+    requests.post(
 
-{stock}
+    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
 
-Price {price}
+    data={"chat_id":CHAT_ID,"text":msg}
 
-P2L {p2l:.2f}
-
-"""
-
-requests.post(
-
-f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-
-data={"chat_id":CHAT_ID,"text":msg}
-
-)
+    )
 
 # ---------------------------------------------------
 # TABLE
 
 def table(df):
 
-html="<table><tr>"
+    html="<table><tr>"
 
-for col in df.columns:
+    for col in df.columns:
 
-html+=f"<th>{col}</th>"
+        html+=f"<th>{col}</th>"
 
-html+="</tr>"
+    html+="</tr>"
 
-for _,row in df.iterrows():
+    for _,row in df.iterrows():
 
-html+="<tr>"
+        html+="<tr>"
 
-for col in df.columns:
+        for col in df.columns:
 
-val=row[col]
+            val=row[col]
 
-style="padding:6px;text-align:center;"
+            style="padding:6px;text-align:center;"
 
-if col=="Stock":
+            if col=="Stock":
 
-if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+                if row["Stock"] in stockstar_list and row["P2L %"]<-5:
 
-style+="color:green;font-weight:bold;animation:flash 1s infinite;"
+                    style+="color:green;font-weight:bold;animation:flash 1s infinite;"
 
-elif row["Stock"] in stockstar_list and row["P2L %"]<-3:
+                elif row["Stock"] in stockstar_list and row["P2L %"]<-3:
 
-style+="color:orange;font-weight:bold;"
+                    style+="color:orange;font-weight:bold;"
 
-elif row["P2L %"]<-2:
+                elif row["P2L %"]<-2:
 
-style+="color:hotpink;font-weight:bold;"
+                    style+="color:hotpink;font-weight:bold;"
 
-if col in ["P2L %","% Chg"]:
+            if col in ["P2L %","% Chg"]:
 
-if val>0:
+                if val>0:
 
-style+="color:green;font-weight:bold;"
+                    style+="color:green;font-weight:bold;"
 
-elif val<0:
+                elif val<0:
 
-style+="color:red;font-weight:bold;"
+                    style+="color:red;font-weight:bold;"
 
-if isinstance(val,float):
+            if isinstance(val,float):
 
-val=f"{val:.2f}"
+                val=f"{val:.2f}"
 
-html+=f"<td style='{style}'>{val}</td>"
+            html+=f"<td style='{style}'>{val}</td>"
 
-html+="</tr>"
+        html+="</tr>"
 
-html+="</table>"
+    html+="</table>"
 
-return html
+    return html
 
 st.markdown(table(df),unsafe_allow_html=True)
 
@@ -305,27 +276,27 @@ st.markdown(table(df),unsafe_allow_html=True)
 
 if sound_alert and trigger:
 
-if uploaded_sound:
+    if uploaded_sound:
 
-audio=base64.b64encode(uploaded_sound.read()).decode()
+        audio=base64.b64encode(uploaded_sound.read()).decode()
 
-st.markdown(
+        st.markdown(
 
-f"<audio autoplay src='data:audio/mp3;base64,{audio}'></audio>",
+        f"<audio autoplay src='data:audio/mp3;base64,{audio}'></audio>",
 
-unsafe_allow_html=True
+        unsafe_allow_html=True
 
-)
+        )
 
-else:
+    else:
 
-st.markdown(
+        st.markdown(
 
-f"<audio autoplay src='{DEFAULT_SOUND_URL}'></audio>",
+        f"<audio autoplay src='{DEFAULT_SOUND_URL}'></audio>",
 
-unsafe_allow_html=True
+        unsafe_allow_html=True
 
-)
+        )
 
 # ---------------------------------------------------
 # AVERAGE
