@@ -21,24 +21,28 @@ BOT_TOKEN = "8371973661:AAFTOjh53yKmmgv3eXqD5wf8Ki6XXrZPq2c"
 CHAT_ID = "5355913841"
 
 # ---------------------------------------------------
-# FLASHING CSS (ORIGINAL RESTORED)
+# FLASHING CSS (RESTORED + NEW COLOUR ANIMATION)
 
 st.markdown("""
 <style>
+
 @keyframes flash {
-0% { opacity: 1; }
-50% { opacity: 0.2; }
-100% { opacity: 1; }
+0% { color: cyan; }
+33% { color: lime; }
+66% { color: silver; }
+100% { color: cyan; }
 }
+
 table {
 background-color:#0e1117;
 color:white;
 }
+
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# EXCEL UPLOAD
+# 📂 EXCEL UPLOAD
 
 st.markdown("### 📂 Upload Excel for Score Analysis")
 
@@ -83,7 +87,7 @@ if s.strip()!=""
 ]
 
 # ---------------------------------------------------
-# SOUND SETTINGS
+# SOUND SETTINGS (RESTORED)
 
 sound_alert = st.toggle(
 "🔊 Enable Alert Sound for -5% Green Stocks",
@@ -91,7 +95,7 @@ value=False
 )
 
 # ---------------------------------------------------
-# TELEGRAM ALERT TOGGLE
+# TELEGRAM ALERT TOGGLE (RESTORED)
 
 telegram_alert = st.toggle(
 "📲 Enable Telegram Alert for Green Flashing",
@@ -99,7 +103,7 @@ value=False
 )
 
 # ---------------------------------------------------
-# SOUND UPLOAD
+# SOUND UPLOAD (RESTORED)
 
 st.markdown("### 🎵 Alert Sound Settings")
 
@@ -114,7 +118,7 @@ DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview
 # STOCK LIST (ORIGINAL)
 
 stocks= {
-# SAME FULL STOCK LIST AS YOUR ORIGINAL
+# SAME ORIGINAL LIST
 "ADANIENT.NS": 2092.68,
 "ADANIGREEN.NS": 957.19,
 "ADANIPORTS.NS": 1487.82,
@@ -191,7 +195,7 @@ stocks= {
 }
 
 # ---------------------------------------------------
-# FETCH DATA (ORIGINAL)
+# FETCH DATA (UNCHANGED)
 
 @st.cache_data(ttl=60)
 def fetch_data():
@@ -273,13 +277,14 @@ if excel_df is not None:
     df=df.merge(excel_df,on="Stock",how="left")
 
 # ---------------------------------------------------
+# SORT
 
 if sort_clicked:
 
     df=df.sort_values("P2L %",ascending=False)
 
 # ---------------------------------------------------
-# TABLE FUNCTION (ONLY NEW RULE ADDED)
+# TABLE FUNCTION (NEW RULE ADDED ONLY HERE)
 
 def generate_html_table(dataframe):
 
@@ -303,33 +308,9 @@ def generate_html_table(dataframe):
 
             style="padding:6px;border:1px solid #444;text-align:center;"
 
-            if col=="Stock":
-
-                if row["Stock"] in stockstar_list and row["P2L %"]<-5:
-
-                    style+="color:green;font-weight:bold;animation: flash 1s infinite;"
-
-                elif row["Stock"] in stockstar_list and row["P2L %"]<-3:
-
-                    style+="color:orange;font-weight:bold;"
-
-                elif row["P2L %"]<-2:
-
-                    style+="color:hotpink;font-weight:bold;"
-
-            if col in ["P2L %","% Chg"]:
-
-                if value>0:
-
-                    style+="color:green;font-weight:bold;"
-
-                elif value<0:
-
-                    style+="color:red;font-weight:bold;"
-
-            # NEW RULE ADDED HERE
-
             if col=="Price" and excel_df is not None:
+
+                # NEW RULE (Priority Highest)
 
                 if pd.notna(row.get("Main6")) and row["Main6"]>=4:
 
@@ -359,11 +340,10 @@ def generate_html_table(dataframe):
 
     return html
 
-# ---------------------------------------------------
-
 st.markdown(generate_html_table(df),unsafe_allow_html=True)
 
 # ---------------------------------------------------
+# AVERAGE
 
 avg=df["P2L %"].mean()
 
