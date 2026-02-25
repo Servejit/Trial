@@ -21,18 +21,15 @@ BOT_TOKEN = "8371973661:AAFTOjh53yKmmgv3eXqD5wf8Ki6XXrZPq2c"
 CHAT_ID = "5355913841"
 
 # ---------------------------------------------------
-# FLASHING CSS
+# FLASHING CSS (ORIGINAL RESTORED)
 
 st.markdown("""
 <style>
 @keyframes flash {
-0% { opacity: 1; color: cyan;}
-25% { opacity: 1; color: yellow;}
-50% { opacity: 1; color: lime;}
-75% { opacity: 1; color: orange;}
-100% { opacity: 1; color: cyan;}
+0% { opacity: 1; }
+50% { opacity: 0.2; }
+100% { opacity: 1; }
 }
-
 table {
 background-color:#0e1117;
 color:white;
@@ -93,10 +90,16 @@ sound_alert = st.toggle(
 value=False
 )
 
+# ---------------------------------------------------
+# TELEGRAM ALERT TOGGLE
+
 telegram_alert = st.toggle(
 "📲 Enable Telegram Alert for Green Flashing",
 value=False
 )
+
+# ---------------------------------------------------
+# SOUND UPLOAD
 
 st.markdown("### 🎵 Alert Sound Settings")
 
@@ -108,10 +111,10 @@ type=["mp3","wav"]
 DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
-# STOCK LIST
+# STOCK LIST (ORIGINAL)
 
 stocks= {
-# SAME AS YOUR ORIGINAL LIST
+# SAME FULL STOCK LIST AS YOUR ORIGINAL
 "ADANIENT.NS": 2092.68,
 "ADANIGREEN.NS": 957.19,
 "ADANIPORTS.NS": 1487.82,
@@ -188,7 +191,7 @@ stocks= {
 }
 
 # ---------------------------------------------------
-# FETCH DATA (UNCHANGED)
+# FETCH DATA (ORIGINAL)
 
 @st.cache_data(ttl=60)
 def fetch_data():
@@ -245,7 +248,23 @@ def fetch_data():
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# LOAD DATA
+# BUTTONS RESTORED
+
+col1,col2=st.columns(2)
+
+with col1:
+
+    if st.button("🔄 Refresh"):
+
+        st.cache_data.clear()
+
+        st.rerun()
+
+with col2:
+
+    sort_clicked=st.button("📈 Sort by P2L")
+
+# ---------------------------------------------------
 
 df=fetch_data()
 
@@ -254,7 +273,13 @@ if excel_df is not None:
     df=df.merge(excel_df,on="Stock",how="left")
 
 # ---------------------------------------------------
-# TABLE FUNCTION
+
+if sort_clicked:
+
+    df=df.sort_values("P2L %",ascending=False)
+
+# ---------------------------------------------------
+# TABLE FUNCTION (ONLY NEW RULE ADDED)
 
 def generate_html_table(dataframe):
 
@@ -278,9 +303,31 @@ def generate_html_table(dataframe):
 
             style="padding:6px;border:1px solid #444;text-align:center;"
 
-            # -----------------------------------------
-            # NEW PRICE RULE ADDED HERE
-            # -----------------------------------------
+            if col=="Stock":
+
+                if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+
+                    style+="color:green;font-weight:bold;animation: flash 1s infinite;"
+
+                elif row["Stock"] in stockstar_list and row["P2L %"]<-3:
+
+                    style+="color:orange;font-weight:bold;"
+
+                elif row["P2L %"]<-2:
+
+                    style+="color:hotpink;font-weight:bold;"
+
+            if col in ["P2L %","% Chg"]:
+
+                if value>0:
+
+                    style+="color:green;font-weight:bold;"
+
+                elif value<0:
+
+                    style+="color:red;font-weight:bold;"
+
+            # NEW RULE ADDED HERE
 
             if col=="Price" and excel_df is not None:
 
