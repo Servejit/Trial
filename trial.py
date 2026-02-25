@@ -428,4 +428,3 @@ if sound_alert and green_trigger and not st.session_state.alert_played:
 avg=df["P2L %"].mean()
 
 st.markdown(f"### 📊 Average P2L of All Stocks is **{avg:.2f}%**")
-```
