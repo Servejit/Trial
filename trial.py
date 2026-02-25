@@ -1,4 +1,3 @@
-```python
 # ---------------------------------------------------
 # INSTALL (Run once)
 # pip install streamlit yfinance pandas requests openpyxl
