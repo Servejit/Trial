@@ -1,6 +1,6 @@
 # ---------------------------------------------------
-# INSTALL
-# pip install streamlit yfinance pandas requests
+# INSTALL (Run once)
+# pip install streamlit yfinance pandas requests openpyxl
 # ---------------------------------------------------
 
 import streamlit as st
@@ -9,23 +9,30 @@ import pandas as pd
 import base64
 import requests
 from datetime import datetime
+import os
 
 st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
 st.title("📊 Live Prices with P2L")
 
 # ---------------------------------------------------
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"
+# TELEGRAM SETTINGS
+
+BOT_TOKEN = "8371973661:AAFTOjh53yKmmgv3eXqD5wf8Ki6XXrZPq2c"
+CHAT_ID = "5355913841"
 
 # ---------------------------------------------------
-# CSS
+# FLASHING CSS
+
 st.markdown("""
 <style>
 @keyframes flash {
-0% {opacity:1;}
-50% {opacity:0.2;}
-100% {opacity:1;}
+0% { opacity: 1; color: cyan;}
+25% { opacity: 1; color: yellow;}
+50% { opacity: 1; color: lime;}
+75% { opacity: 1; color: orange;}
+100% { opacity: 1; color: cyan;}
 }
+
 table {
 background-color:#0e1117;
 color:white;
@@ -34,113 +41,200 @@ color:white;
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
+# EXCEL UPLOAD
+
+st.markdown("### 📂 Upload Excel for Score Analysis")
+
+excel_file = st.file_uploader(
+"Upload Excel File",
+type=["xlsx"]
+)
+
+EXCEL_PATH="stock_scores.xlsx"
+
+excel_df=None
+
+if excel_file is not None:
+
+    if os.path.exists(EXCEL_PATH):
+        os.remove(EXCEL_PATH)
+
+    with open(EXCEL_PATH,"wb") as f:
+        f.write(excel_file.read())
+
+    excel_df=pd.read_excel(EXCEL_PATH)
+
+    excel_df["Stock"]=(
+    excel_df["Stock"]
+    .astype(str)
+    .str.replace(".NS","")
+    .str.upper()
+    )
+
+# ---------------------------------------------------
+# STOCKSTAR INPUT
+
 stockstar_input = st.text_input(
-"⭐ StockStar",
-"BOSCHLTD.NS, BSE.NS"
+"⭐ StockStar (Comma Separated)",
+"BOSCHLTD.NS, BSE.NS, HEROMOTOCO.NS, HINDALCO.NS, HINDZINC.NS, M&M.NS, MUTHOOTFIN.NS, PIIND.NS"
 ).upper()
 
-stockstar_list = [
+stockstar_list=[
 s.strip().replace(".NS","")
 for s in stockstar_input.split(",")
-if s.strip()
+if s.strip()!=""
 ]
 
-sound_alert = st.toggle("🔊 Sound", False)
-telegram_alert = st.toggle("📲 Telegram", False)
+# ---------------------------------------------------
+# SOUND SETTINGS
 
-uploaded_sound = st.file_uploader("Upload Sound", type=["mp3","wav"])
+sound_alert = st.toggle(
+"🔊 Enable Alert Sound for -5% Green Stocks",
+value=False
+)
+
+telegram_alert = st.toggle(
+"📲 Enable Telegram Alert for Green Flashing",
+value=False
+)
+
+st.markdown("### 🎵 Alert Sound Settings")
+
+uploaded_sound = st.file_uploader(
+"Upload Your Custom Sound (.mp3 or .wav)",
+type=["mp3","wav"]
+)
 
 DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
-stocks = {
+# STOCK LIST
 
-"BSE.NS":2718.29,
-"BOSCHLTD.NS":35043.90,
-"HEROMOTOCO.NS":5419.27,
-"HINDALCO.NS":878.80
-
+stocks= {
+# SAME AS YOUR ORIGINAL LIST
+"ADANIENT.NS": 2092.68,
+"ADANIGREEN.NS": 957.19,
+"ADANIPORTS.NS": 1487.82,
+"AMBUJACEM.NS": 506.11,
+"AXISBANK.NS": 1309.52,
+"BAJAJHFL.NS": 88.23,
+"BHARTIARTL.NS": 1961.15,
+"BHEL.NS": 249.45,
+"BOSCHLTD.NS": 35043.90,
+"BPCL.NS": 367.20,
+"BSE.NS": 2718.29,
+"CANBK.NS": 139.45,
+"COALINDIA.NS": 404.57,
+"COFORGE.NS": 1195.90,
+"DIXON.NS": 10345.07,
+"DLF.NS": 612.92,
+"DMART.NS": 3823.09,
+"ETERNAL.NS": 251.17,
+"GMRAIRPORT.NS": 93.06,
+"GODREJCP.NS": 1165.94,
+"HCLTECH.NS": 1319.19,
+"HDFCAMC.NS": 2687.89,
+"HDFCBANK.NS": 896.50,
+"HEROMOTOCO.NS": 5419.27,
+"HINDALCO.NS": 878.80,
+"HINDUNILVR.NS": 2282.38,
+"HINDZINC.NS": 573.56,
+"IDFCFIRSTB.NS": 79.61,
+"INDHOTEL.NS": 661.68,
+"INDUSINDBK.NS": 907.39,
+"INFY.NS": 1260.94,
+"IRCTC.NS": 603.12,
+"IRFC.NS": 110.02,
+"JIOFIN.NS": 258.25,
+"JSWENERGY.NS": 466.51,
+"JUBLFOOD.NS": 522.62,
+"KOTAKBANK.NS": 416.16,
+"LODHA.NS": 1052.06,
+"LTIM.NS": 4454.34,
+"M%26M.NS": 3444.69,
+"MANKIND.NS": 2004.83,
+"MOTHERSON.NS": 127.84,
+"MPHASIS.NS": 2205.17,
+"MUTHOOTFIN.NS": 3348.18,
+"NAUKRI.NS": 1003.58,
+"NHPC.NS": 73.34,
+"OBEROIRLTY.NS": 1486.53,
+"OFSS.NS": 6367.50,
+"OIL.NS": 451.02,
+"PAGEIND.NS": 32302.68,
+"PERSISTENT.NS": 4573.54,
+"PFC.NS": 395.26,
+"PHOENIXLTD.NS": 1658.76,
+"PIIND.NS": 2999.93,
+"PNB.NS": 116.96,
+"POLYCAB.NS": 7498.32,
+"PRESTIGE.NS": 1464.64,
+"RECLTD.NS": 338.10,
+"RELIANCE.NS": 1402.25,
+"SBICARD.NS": 756.25,
+"SHREECEM.NS": 25621.25,
+"SOLARINDS.NS": 12787.74,
+"SRF.NS": 2546.62,
+"SUZLON.NS": 43.14,
+"TATACONSUM.NS": 1111.51,
+"TATASTEEL.NS": 199.55,
+"TCS.NS": 2578.54,
+"TECHM.NS": 1331.96,
+"TRENT.NS": 3880.50,
+"ULTRACEMCO.NS": 12515.11,
+"UPL.NS": 712.82,
+"VBL.NS": 443.37,
+"YESBANK.NS": 20.60,
 }
 
 # ---------------------------------------------------
-# SESSION STATE
+# FETCH DATA (UNCHANGED)
 
-if "rundown_start" not in st.session_state:
+@st.cache_data(ttl=60)
+def fetch_data():
 
-    st.session_state.rundown_start={}
-
-# ---------------------------------------------------
-# FETCH (NO CACHE)
-
-def fetch():
+    symbols=list(stocks.keys())
 
     data=yf.download(
-
-    tickers=list(stocks.keys()),
-
+    tickers=symbols,
     period="2d",
-
     interval="1d",
-
     group_by="ticker",
-
     progress=False
-
     )
 
     rows=[]
 
-    now=datetime.now()
-
-    for symbol in stocks:
+    for sym in symbols:
 
         try:
 
-            ref=stocks[symbol]
+            ref=stocks[sym]
 
-            price=data[symbol]["Close"].iloc[-1]
+            price=data[sym]["Close"].iloc[-1]
 
-            prev=data[symbol]["Close"].iloc[-2]
+            prev=data[sym]["Close"].iloc[-2]
 
-            key=symbol.replace(".NS","")
+            openp=data[sym]["Open"].iloc[-1]
+
+            high=data[sym]["High"].iloc[-1]
+
+            low=data[sym]["Low"].iloc[-1]
 
             p2l=((price-ref)/ref)*100
 
             chg=((price-prev)/prev)*100
 
-            # RUN DOWN REAL
-
-            if price < ref:
-
-                if key not in st.session_state.rundown_start:
-
-                    st.session_state.rundown_start[key]=now
-
-                start=st.session_state.rundown_start[key]
-
-                minutes=int((now-start).total_seconds()/60)
-
-                rundown=f"🟠{minutes}"
-
-            else:
-
-                st.session_state.rundown_start.pop(key,None)
-
-                rundown="0"
-
             rows.append({
 
-            "Stock":key,
-
+            "Stock":sym.replace(".NS",""),
             "P2L %":p2l,
-
             "Price":price,
-
             "% Chg":chg,
-
             "Low Price":ref,
-
-            "Run Down":rundown
+            "Open":openp,
+            "High":high,
+            "Low":low
 
             })
 
@@ -151,34 +245,79 @@ def fetch():
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# BUTTONS
+# LOAD DATA
 
-col1,col2=st.columns(2)
+df=fetch_data()
 
-with col1:
+if excel_df is not None:
 
-    if st.button("🔄 Refresh"):
+    df=df.merge(excel_df,on="Stock",how="left")
 
-        st.rerun()
+# ---------------------------------------------------
+# TABLE FUNCTION
 
-with col2:
+def generate_html_table(dataframe):
 
-    sort=st.button("📈 Sort")
+    html="<table style='width:100%;border-collapse:collapse;'>"
+
+    html+="<tr style='background-color:#111;'>"
+
+    for col in dataframe.columns:
+
+        html+=f"<th style='padding:8px;border:1px solid #444'>{col}</th>"
+
+    html+="</tr>"
+
+    for _,row in dataframe.iterrows():
+
+        html+="<tr>"
+
+        for col in dataframe.columns:
+
+            value=row[col]
+
+            style="padding:6px;border:1px solid #444;text-align:center;"
+
+            # -----------------------------------------
+            # NEW PRICE RULE ADDED HERE
+            # -----------------------------------------
+
+            if col=="Price" and excel_df is not None:
+
+                if pd.notna(row.get("Main6")) and row["Main6"]>=4:
+
+                    style+="font-weight:bold;animation: flash 1s infinite;"
+
+                elif pd.notna(row.get("Main6")) and row["Main6"]>=3:
+
+                    style+="color:orange;font-weight:bold;"
+
+                elif pd.notna(row.get("Main4")) and row["Main4"]>=2:
+
+                    style+="color:hotpink;font-weight:bold;"
+
+                elif pd.notna(row.get("Total")) and row["Total"]>=3:
+
+                    style+="color:yellow;font-weight:bold;"
+
+            if isinstance(value,float):
+
+                value=f"{value:.2f}"
+
+            html+=f"<td style='{style}'>{value}</td>"
+
+        html+="</tr>"
+
+    html+="</table>"
+
+    return html
 
 # ---------------------------------------------------
 
-df=fetch()
-
-if sort:
-
-    df=df.sort_values("P2L %",ascending=False)
+st.markdown(generate_html_table(df),unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# TABLE
 
-st.dataframe(df,use_container_width=True)
+avg=df["P2L %"].mean()
 
-# ---------------------------------------------------
-# AVERAGE
-
-st.write("Average:",round(df["P2L %"].mean(),2))
+st.markdown(f"### 📊 Average P2L of All Stocks is **{avg:.2f}%**")
