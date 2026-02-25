@@ -123,10 +123,10 @@ type=["mp3","wav"]
 DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
-# STOCK LIST (UNCHANGED)
+# STOCK LIST (FULL SAME)
 
 stocks= {
-# FULL SAME LIST — NO CHANGE
+# SAME FULL LIST
 "ADANIENT.NS": 2092.68,
 "ADANIGREEN.NS": 957.19,
 "ADANIPORTS.NS": 1487.82,
@@ -203,17 +203,29 @@ stocks= {
 }
 
 # ---------------------------------------------------
-# FETCH FUNCTION SAME
+# FETCH
 
 @st.cache_data(ttl=60)
 def fetch_data():
+
     symbols=list(stocks.keys())
-    data=yf.download(tickers=symbols,period="2d",interval="1d",group_by="ticker",progress=False)
+
+    data=yf.download(
+    tickers=symbols,
+    period="2d",
+    interval="1d",
+    group_by="ticker",
+    progress=False
+    )
 
     rows=[]
+
     for sym in symbols:
+
         try:
+
             ref=stocks[sym]
+
             price=data[sym]["Close"].iloc[-1]
             prev=data[sym]["Close"].iloc[-2]
             openp=data[sym]["Open"].iloc[-1]
@@ -224,6 +236,7 @@ def fetch_data():
             chg=((price-prev)/prev)*100
 
             rows.append({
+
             "Stock":sym.replace(".NS",""),
             "P2L %":p2l,
             "Price":price,
@@ -232,35 +245,110 @@ def fetch_data():
             "Open":openp,
             "High":high,
             "Low":low
+
             })
+
         except:
+
             pass
 
     return pd.DataFrame(rows)
 
 # ---------------------------------------------------
-# BUTTONS SAME
+# BUTTONS
 
 col1,col2=st.columns(2)
 
 with col1:
+
     if st.button("🔄 Refresh"):
+
         st.cache_data.clear()
+
         st.rerun()
 
 with col2:
+
     sort_clicked=st.button("📈 Sort by P2L")
+
+# ---------------------------------------------------
+# LOAD
 
 df=fetch_data()
 
 if excel_df is not None:
+
     df=df.merge(excel_df,on="Stock",how="left")
 
+# ---------------------------------------------------
+# SORT
+
 if sort_clicked:
+
     df=df.sort_values("P2L %",ascending=False)
 
 # ---------------------------------------------------
-# TABLE FUNCTION WITH NEW RULE
+# GREEN TRIGGER
+
+green_trigger=False
+trigger_stock=""
+trigger_price=0
+trigger_p2l=0
+
+for _,row in df.iterrows():
+
+    if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+
+        green_trigger=True
+        trigger_stock=row["Stock"]
+        trigger_price=row["Price"]
+        trigger_p2l=row["P2L %"]
+
+        break
+
+# ---------------------------------------------------
+# ALERT STATE
+
+if "alert_played" not in st.session_state:
+
+    st.session_state.alert_played=False
+
+if not green_trigger:
+
+    st.session_state.alert_played=False
+
+# ---------------------------------------------------
+# TELEGRAM ALERT
+
+if telegram_alert and green_trigger and not st.session_state.alert_played:
+
+    current_time=datetime.now().strftime("%I:%M:%S %p")
+
+    message=f"""
+
+🟢 GREEN FLASH ALERT
+
+Stock: {trigger_stock}
+
+Price: ₹{trigger_price:.2f}
+
+P2L: {trigger_p2l:.2f}%
+
+Time: {current_time}
+
+"""
+
+    url=f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+    requests.post(url,data={
+
+    "chat_id":CHAT_ID,
+    "text":message
+
+    })
+
+# ---------------------------------------------------
+# TABLE
 
 def generate_html_table(dataframe):
 
@@ -269,6 +357,7 @@ def generate_html_table(dataframe):
     html+="<tr style='background-color:#111;'>"
 
     for col in dataframe.columns:
+
         html+=f"<th style='padding:8px;border:1px solid #444'>{col}</th>"
 
     html+="</tr>"
@@ -302,6 +391,7 @@ def generate_html_table(dataframe):
                     style+="color:yellow;font-weight:bold;"
 
             if isinstance(value,float):
+
                 value=f"{value:.2f}"
 
             html+=f"<td style='{style}'>{value}</td>"
@@ -312,10 +402,47 @@ def generate_html_table(dataframe):
 
     return html
 
-
 st.markdown(generate_html_table(df),unsafe_allow_html=True)
 
 # ---------------------------------------------------
+# SOUND ALERT
+
+if sound_alert and green_trigger and not st.session_state.alert_played:
+
+    st.session_state.alert_played=True
+
+    if uploaded_sound is not None:
+
+        audio_bytes=uploaded_sound.read()
+
+        b64=base64.b64encode(audio_bytes).decode()
+
+        file_type=uploaded_sound.type
+
+        st.markdown(f"""
+
+<audio autoplay>
+
+<source src="data:{file_type};base64,{b64}">
+
+</audio>
+
+""",unsafe_allow_html=True)
+
+    else:
+
+        st.markdown(f"""
+
+<audio autoplay>
+
+<source src="{DEFAULT_SOUND_URL}">
+
+</audio>
+
+""",unsafe_allow_html=True)
+
+# ---------------------------------------------------
+# AVERAGE
 
 avg=df["P2L %"].mean()
 
