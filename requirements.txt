@@ -4,3 +4,8 @@ pandas
 requests
 bcrypt
 PyGithub
+streamlit
+yfinance
+pandas
+requests
+openpyxl
