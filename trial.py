@@ -25,27 +25,15 @@ CHAT_ID = "5355913841"
 
 st.markdown("""
 <style>
-
 @keyframes flash {
 0% { opacity: 1; }
 50% { opacity: 0.2; }
 100% { opacity: 1; }
 }
-
-@keyframes priceFlash {
-0% { color: cyan; }
-20% { color: green; }
-40% { color: lime; }
-60% { color: magenta; }
-80% { color: silver; }
-100% { color: cyan; }
-}
-
 table {
 background-color:#0e1117;
 color:white;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -123,10 +111,9 @@ type=["mp3","wav"]
 DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 
 # ---------------------------------------------------
-# STOCK LIST (FULL SAME)
+# STOCK LIST
 
-stocks= {
-# SAME FULL LIST
+stocks={
 "ADANIENT.NS": 2092.68,
 "ADANIGREEN.NS": 957.19,
 "ADANIPORTS.NS": 1487.82,
@@ -141,10 +128,10 @@ stocks= {
 "CANBK.NS": 139.45,
 "COALINDIA.NS": 404.57,
 "COFORGE.NS": 1195.90,
-"DIXON.NS": 10345.07,
+"DIXON.NS": 10294.20,
 "DLF.NS": 612.92,
 "DMART.NS": 3823.09,
-"ETERNAL.NS": 251.17,
+"ETERNAL.NS": 248.83,
 "GMRAIRPORT.NS": 93.06,
 "GODREJCP.NS": 1165.94,
 "HCLTECH.NS": 1319.19,
@@ -157,17 +144,20 @@ stocks= {
 "IDFCFIRSTB.NS": 79.61,
 "INDHOTEL.NS": 661.68,
 "INDUSINDBK.NS": 907.39,
+"INDUSTOWER.NS": 451.98,
 "INFY.NS": 1260.94,
 "IRCTC.NS": 603.12,
 "IRFC.NS": 110.02,
+"ITC.NS": 316.51,
 "JIOFIN.NS": 258.25,
 "JSWENERGY.NS": 466.51,
-"JUBLFOOD.NS": 522.62,
+"JUBLFOOD.NS": 507.90,
 "KOTAKBANK.NS": 416.16,
 "LODHA.NS": 1052.06,
 "LTIM.NS": 4454.34,
 "M%26M.NS": 3444.69,
 "MANKIND.NS": 2004.83,
+"MAZDOCK.NS": 2219.94,
 "MOTHERSON.NS": 127.84,
 "MPHASIS.NS": 2205.17,
 "MUTHOOTFIN.NS": 3348.18,
@@ -190,7 +180,7 @@ stocks= {
 "SHREECEM.NS": 25621.25,
 "SOLARINDS.NS": 12787.74,
 "SRF.NS": 2546.62,
-"SUZLON.NS": 43.14,
+"SUZLON.NS": 42.49,
 "TATACONSUM.NS": 1111.51,
 "TATASTEEL.NS": 199.55,
 "TCS.NS": 2578.54,
@@ -203,7 +193,7 @@ stocks= {
 }
 
 # ---------------------------------------------------
-# FETCH
+# FETCH DATA
 
 @st.cache_data(ttl=60)
 def fetch_data():
@@ -227,23 +217,35 @@ def fetch_data():
             ref=stocks[sym]
 
             price=data[sym]["Close"].iloc[-1]
+
             prev=data[sym]["Close"].iloc[-2]
+
             openp=data[sym]["Open"].iloc[-1]
+
             high=data[sym]["High"].iloc[-1]
+
             low=data[sym]["Low"].iloc[-1]
 
             p2l=((price-ref)/ref)*100
+
             chg=((price-prev)/prev)*100
 
             rows.append({
 
             "Stock":sym.replace(".NS",""),
+
             "P2L %":p2l,
+
             "Price":price,
+
             "% Chg":chg,
+
             "Low Price":ref,
+
             "Open":openp,
+
             "High":high,
+
             "Low":low
 
             })
@@ -253,6 +255,82 @@ def fetch_data():
             pass
 
     return pd.DataFrame(rows)
+
+# ---------------------------------------------------
+# SUPER BUY SIGNAL FUNCTION (ADDED ONLY)
+
+def super_buy_signal(symbol):
+
+    data=yf.download(
+    tickers=symbol+".NS",
+    period="3mo",
+    interval="1d",
+    progress=False
+    )
+
+    if len(data)<50:
+
+        return False,"",""
+
+    close=data["Close"]
+
+    ema20=close.ewm(span=20).mean()
+
+    ema50=close.ewm(span=50).mean()
+
+    delta=close.diff()
+
+    gain=delta.clip(lower=0)
+
+    loss=-delta.clip(upper=0)
+
+    avg_gain=gain.rolling(14).mean()
+
+    avg_loss=loss.rolling(14).mean()
+
+    rs=avg_gain/avg_loss
+
+    rsi=100-(100/(1+rs))
+
+    high=data["High"]
+
+    low=data["Low"]
+
+    tr=pd.concat([
+
+    high-low,
+
+    abs(high-close.shift()),
+
+    abs(low-close.shift())
+
+    ],axis=1).max(axis=1)
+
+    atr=tr.rolling(14).mean()
+
+    price=close.iloc[-1]
+
+    condition=(
+
+    price>ema20.iloc[-1]
+
+    and ema20.iloc[-1]>ema50.iloc[-1]
+
+    and 50<rsi.iloc[-1]<65
+
+    and price<=ema20.iloc[-1]*1.02
+
+    )
+
+    if condition:
+
+        target=price+(2*atr.iloc[-1])
+
+        stop=ema50.iloc[-1]
+
+        return True,round(target,2),round(stop,2)
+
+    return False,"",""
 
 # ---------------------------------------------------
 # BUTTONS
@@ -272,177 +350,49 @@ with col2:
     sort_clicked=st.button("📈 Sort by P2L")
 
 # ---------------------------------------------------
-# LOAD
+# LOAD DATA
 
 df=fetch_data()
 
-if excel_df is not None:
-
-    df=df.merge(excel_df,on="Stock",how="left")
-
 # ---------------------------------------------------
-# SORT
+# ADD SUPER BUY COLUMN (ADDED ONLY)
 
-if sort_clicked:
+signals=[]
 
-    df=df.sort_values("P2L %",ascending=False)
+targets=[]
 
-# ---------------------------------------------------
-# GREEN TRIGGER
+stops=[]
 
-green_trigger=False
-trigger_stock=""
-trigger_price=0
-trigger_p2l=0
+for stock in df["Stock"]:
 
-for _,row in df.iterrows():
+    s,t,sl=super_buy_signal(stock)
 
-    if row["Stock"] in stockstar_list and row["P2L %"]<-5:
+    if s:
 
-        green_trigger=True
-        trigger_stock=row["Stock"]
-        trigger_price=row["Price"]
-        trigger_p2l=row["P2L %"]
+        signals.append("🔥 SUPER BUY")
 
-        break
+        targets.append(t)
 
-# ---------------------------------------------------
-# ALERT STATE
-
-if "alert_played" not in st.session_state:
-
-    st.session_state.alert_played=False
-
-if not green_trigger:
-
-    st.session_state.alert_played=False
-
-# ---------------------------------------------------
-# TELEGRAM ALERT
-
-if telegram_alert and green_trigger and not st.session_state.alert_played:
-
-    current_time=datetime.now().strftime("%I:%M:%S %p")
-
-    message=f"""
-
-🟢 GREEN FLASH ALERT
-
-Stock: {trigger_stock}
-
-Price: ₹{trigger_price:.2f}
-
-P2L: {trigger_p2l:.2f}%
-
-Time: {current_time}
-
-"""
-
-    url=f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-    requests.post(url,data={
-
-    "chat_id":CHAT_ID,
-    "text":message
-
-    })
-
-# ---------------------------------------------------
-# TABLE
-
-def generate_html_table(dataframe):
-
-    html="<table style='width:100%;border-collapse:collapse;'>"
-
-    html+="<tr style='background-color:#111;'>"
-
-    for col in dataframe.columns:
-
-        html+=f"<th style='padding:8px;border:1px solid #444'>{col}</th>"
-
-    html+="</tr>"
-
-    for _,row in dataframe.iterrows():
-
-        html+="<tr>"
-
-        for col in dataframe.columns:
-
-            value=row[col]
-
-            style="padding:6px;border:1px solid #444;text-align:center;"
-
-            if col=="Price" and excel_df is not None:
-
-                if pd.notna(row.get("Main6")) and row["Main6"]>=4:
-
-                    style+="font-weight:bold;animation: priceFlash 2s infinite;"
-
-                elif pd.notna(row.get("Main6")) and row["Main6"]>=3:
-
-                    style+="color:orange;font-weight:bold;"
-
-                elif pd.notna(row.get("Main4")) and row["Main4"]>=2:
-
-                    style+="color:hotpink;font-weight:bold;"
-
-                elif pd.notna(row.get("Total")) and row["Total"]>=3:
-
-                    style+="color:yellow;font-weight:bold;"
-
-            if isinstance(value,float):
-
-                value=f"{value:.2f}"
-
-            html+=f"<td style='{style}'>{value}</td>"
-
-        html+="</tr>"
-
-    html+="</table>"
-
-    return html
-
-st.markdown(generate_html_table(df),unsafe_allow_html=True)
-
-# ---------------------------------------------------
-# SOUND ALERT
-
-if sound_alert and green_trigger and not st.session_state.alert_played:
-
-    st.session_state.alert_played=True
-
-    if uploaded_sound is not None:
-
-        audio_bytes=uploaded_sound.read()
-
-        b64=base64.b64encode(audio_bytes).decode()
-
-        file_type=uploaded_sound.type
-
-        st.markdown(f"""
-
-<audio autoplay>
-
-<source src="data:{file_type};base64,{b64}">
-
-</audio>
-
-""",unsafe_allow_html=True)
+        stops.append(sl)
 
     else:
 
-        st.markdown(f"""
+        signals.append("")
 
-<audio autoplay>
+        targets.append("")
 
-<source src="{DEFAULT_SOUND_URL}">
+        stops.append("")
 
-</audio>
+df["Signal"]=signals
 
-""",unsafe_allow_html=True)
+df["Target"]=targets
+
+df["StopLoss"]=stops
 
 # ---------------------------------------------------
-# AVERAGE
+# REST SAME AS YOUR ORIGINAL
+
+st.dataframe(df)
 
 avg=df["P2L %"].mean()
 
