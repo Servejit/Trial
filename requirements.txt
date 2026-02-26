@@ -9,3 +9,9 @@ yfinance
 pandas
 requests
 openpyxl
+streamlit
+yfinance
+pandas
+requests
+openpyxl
+numpy
