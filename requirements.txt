@@ -19,3 +19,8 @@ streamlit
 pandas
 yfinance
 requests
+streamlit
+yfinance
+pandas
+requests
+matplotlib
