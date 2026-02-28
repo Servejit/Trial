@@ -14,6 +14,8 @@ pd.options.display.float_format = '{:.2f}'.format
 
 st.set_page_config(layout="wide")
 
+st.title("NSE Index 6th Sense Scanner")
+
 # =====================================================
 # NSE INDEX CSV LINKS
 # =====================================================
@@ -39,6 +41,7 @@ def get_index_stocks(url):
     df = pd.read_csv(io.StringIO(response.text))
     stocks = df["Symbol"].dropna().tolist()
     return [stock + ".NS" for stock in stocks]
+
 
 # =====================================================
 # ANALYSIS FUNCTION
@@ -76,16 +79,16 @@ def run_analysis():
                 if len(data) < 12:
                     continue
 
-                Low_y   = round(data["Low"].iloc[-2].item(),2)
-                Low_py  = round(data["Low"].iloc[-3].item(),2)
-                Low_pyy = round(data["Low"].iloc[-4].item(),2)
-                Low_q   = round(data["Low"].iloc[-5].item(),2)
-                Low_qy  = round(data["Low"].iloc[-6].item(),2)
-                Low_qyy = round(data["Low"].iloc[-7].item(),2)
-                Low_r   = round(data["Low"].iloc[-8].item(),2)
+                Low_y   = round(data["Low"].iloc[-2],2)
+                Low_py  = round(data["Low"].iloc[-3],2)
+                Low_pyy = round(data["Low"].iloc[-4],2)
+                Low_q   = round(data["Low"].iloc[-5],2)
+                Low_qy  = round(data["Low"].iloc[-6],2)
+                Low_qyy = round(data["Low"].iloc[-7],2)
+                Low_r   = round(data["Low"].iloc[-8],2)
 
-                Low_10 = round(data["Low"].iloc[-11:-1].min().item(),2)
-                today_close = round(data["Close"].iloc[-1].item(),2)
+                Low_10 = round(data["Low"].iloc[-11:-1].min(),2)
+                today_close = round(data["Close"].iloc[-1],2)
 
                 P2L_10 = ((today_close - Low_10) / Low_10) * 100
 
@@ -162,7 +165,7 @@ def run_analysis():
         index_summary[index_name] = index_p2l
 
         # SORTING
-        def is_colored(row):
+        def is_priority(row):
             return (
                 row["6th"] != "" and
                 row["L1"] < -0.50 and
@@ -170,48 +173,23 @@ def run_analysis():
                 row["L3"] < -0.50
             )
 
-        df["Priority"] = df.apply(lambda x: 0 if is_colored(x) else 1, axis=1)
-        df = df.sort_values(by=["Priority","P2L%"], ascending=[True, True]).drop(columns=["Priority"])
+        df["Priority"] = df.apply(lambda x: 0 if is_priority(x) else 1, axis=1)
+        df = df.sort_values(by=["Priority","P2L%"], ascending=[True, True])
+        df = df.drop(columns=["Priority"])
 
-        # STYLING (Exact Same Rules)
-        def highlight_stock(row):
+        # FORMAT NUMERIC COLUMNS ONLY
+        numeric_cols = [
+            "P2L%","Price","Low.y","Low.py","Low.pyy",
+            "Low.q","Low.qy","Low.qyy","Low.r","Low.10",
+            "L1","L2","L3","L4","L5","L6"
+        ]
 
-            if row["6th"] != "":
+        for col in numeric_cols:
+            df[col] = df[col].round(2)
 
-                if row["L1"] < -1.50 and row["L2"] < -1.50 and row["L3"] < -1.50:
-                    color = "green"
-                elif row["L1"] < -1.00 and row["L2"] < -1.00 and row["L3"] < -1.00:
-                    color = "orange"
-                elif row["L1"] < -0.75 and row["L2"] < -0.75 and row["L3"] < -0.75:
-                    color = "hotpink"
-                elif row["L1"] < -0.50 and row["L2"] < -0.50 and row["L3"] < -0.50:
-                    color = "yellow"
-                else:
-                    return [""] * len(row)
+        st.dataframe(df, use_container_width=True)
 
-                styles = []
-                for col in row.index:
-                    if col == "Stock":
-                        if row["6th"] == "6thSense":
-                            styles.append(f"background-color:{color}; color:white; font-weight:bold")
-                        else:
-                            styles.append(f"background-color:{color}; font-weight:bold")
-                    else:
-                        styles.append("")
-                return styles
-
-            return [""] * len(row)
-
-        styled_df = (
-            df.style
-            .format("{:.2f}")
-            .background_gradient(subset=["P2L%"], cmap="RdYlGn")
-            .background_gradient(subset=["L1","L2","L3","L4","L5","L6"], cmap="RdYlGn", axis=1)
-            .apply(highlight_stock, axis=1)
-        )
-
-        st.dataframe(styled_df, use_container_width=True)
-
+    # INDEX SUMMARY
     st.markdown("## 📊 INDEX P2L SUMMARY")
     for k,v in index_summary.items():
         st.write(f"{k} P2L: {round(v,2)} %")
