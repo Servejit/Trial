@@ -17,7 +17,6 @@ warnings.filterwarnings("ignore")
 pd.options.display.float_format = '{:.2f}'.format
 
 st.set_page_config(layout="wide")
-
 st.title("NSE Index Stock Analysis")
 
 # =====================================================
@@ -36,20 +35,35 @@ index_urls = {
 }
 
 # =====================================================
-# FETCH STOCK LIST
+# FETCH STOCK LIST (FIXED NSE SESSION METHOD)
 # =====================================================
 
 def get_index_stocks(url):
 
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
+    session = requests.Session()
+
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br"
+    }
+
+    # Create session cookie
+    session.get("https://www.nseindia.com", headers=headers)
+
+    response = session.get(url, headers=headers)
+
+    if response.status_code != 200:
+        raise Exception("Failed to fetch NSE data")
+
     df = pd.read_csv(io.StringIO(response.text))
 
     stocks = df["Symbol"].dropna().tolist()
+
     return [stock + ".NS" for stock in stocks]
 
 # =====================================================
-# BUTTON
+# RUN BUTTON
 # =====================================================
 
 if st.button("RUN ANALYSIS"):
@@ -184,31 +198,8 @@ if st.button("RUN ANALYSIS"):
         df["Priority"] = df.apply(lambda x: 0 if is_colored(x) else 1, axis=1)
         df = df.sort_values(by=["Priority","P2L%"], ascending=[True, True]).drop(columns=["Priority"])
 
-        # FORMAT
-        styled_df = (
-            df.style
-            .format({
-                "Price":"{:.2f}",
-                "Low.y":"{:.2f}",
-                "Low.py":"{:.2f}",
-                "Low.pyy":"{:.2f}",
-                "Low.q":"{:.2f}",
-                "Low.qy":"{:.2f}",
-                "Low.qyy":"{:.2f}",
-                "Low.r":"{:.2f}",
-                "Low.10":"{:.2f}",
-                "P2L%":"{:.2f}%",
-                "L1":"{:.2f}%",
-                "L2":"{:.2f}%",
-                "L3":"{:.2f}%",
-                "L4":"{:.2f}%",
-                "L5":"{:.2f}%",
-                "L6":"{:.2f}%"
-            })
-            .background_gradient(subset=["P2L%","L1","L2","L3","L4","L5","L6"], cmap="RdYlGn")
-        )
-
-        st.dataframe(styled_df, use_container_width=True)
+        # DISPLAY
+        st.dataframe(df, use_container_width=True)
 
     st.markdown("## INDEX P2L SUMMARY")
     for k,v in index_summary.items():
