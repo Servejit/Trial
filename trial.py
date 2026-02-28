@@ -10,10 +10,10 @@ import warnings
 warnings.filterwarnings("ignore")
 
 st.set_page_config(layout="wide")
-st.title("NSE Index 6th Sense Scanner (Cloud Safe Version)")
+st.title("NSE Index 6th Sense Scanner")
 
 # =====================================================
-# INDEX LIST (FULL SAFE LIST)
+# INDEX STOCKS (Bulk Safe)
 # =====================================================
 
 index_stocks = {
@@ -23,42 +23,46 @@ index_stocks = {
         "HINDUNILVR.NS","BAJFINANCE.NS","BHARTIARTL.NS","ASIANPAINT.NS",
         "MARUTI.NS","TITAN.NS","SUNPHARMA.NS","ULTRACEMCO.NS",
         "NESTLEIND.NS","WIPRO.NS"
-    ],
-    "Nifty Next 50": [
-        "DLF.NS","PIDILITIND.NS","HAVELLS.NS","BANKBARODA.NS",
-        "TORNTPHARM.NS","SIEMENS.NS","INDIGO.NS","VEDL.NS"
-    ],
-    "Nifty Midcap 50": [
-        "AUROPHARMA.NS","MPHASIS.NS","COFORGE.NS",
-        "SRF.NS","POLYCAB.NS","PAGEIND.NS","ABB.NS","TRENT.NS"
     ]
 }
 
 # =====================================================
-# ANALYSIS FUNCTION
+# COLOR LOGIC (Original Rules Preserved)
+# =====================================================
+
+def get_color(row):
+
+    if row["6th"] == "":
+        return ""
+
+    if row["L1"] < -1.50 and row["L2"] < -1.50 and row["L3"] < -1.50:
+        return "green"
+    elif row["L1"] < -1.00 and row["L2"] < -1.00 and row["L3"] < -1.00:
+        return "orange"
+    elif row["L1"] < -0.75 and row["L2"] < -0.75 and row["L3"] < -0.75:
+        return "hotpink"
+    elif row["L1"] < -0.50 and row["L2"] < -0.50 and row["L3"] < -0.50:
+        return "yellow"
+
+    return ""
+
+# =====================================================
+# ANALYSIS
 # =====================================================
 
 def run_analysis():
-
-    index_summary = {}
 
     for index_name, stocks in index_stocks.items():
 
         st.markdown(f"## 🟢 {index_name}")
 
-        try:
-            # 🔥 BULK DOWNLOAD (KEY FIX)
-            data = yf.download(
-                tickers=stocks,
-                period="20d",
-                group_by='ticker',
-                threads=False,
-                progress=False
-            )
-
-        except Exception as e:
-            st.error("Yahoo blocked request.")
-            return
+        data = yf.download(
+            tickers=stocks,
+            period="20d",
+            group_by='ticker',
+            threads=False,
+            progress=False
+        )
 
         rows = []
 
@@ -66,7 +70,6 @@ def run_analysis():
 
             try:
                 df = data[symbol].dropna()
-
                 if len(df) < 12:
                     continue
 
@@ -118,6 +121,14 @@ def run_analysis():
                     round(P2L_10,2),
                     signal,
                     round(today_close,2),
+                    round(Low_y,2),
+                    round(Low_py,2),
+                    round(Low_pyy,2),
+                    round(Low_q,2),
+                    round(Low_qy,2),
+                    round(Low_qyy,2),
+                    round(Low_r,2),
+                    round(Low_10,2),
                     round(L1,2),round(L2,2),round(L3,2),
                     round(L4,2),round(L5,2),round(L6,2)
                 ])
@@ -125,25 +136,37 @@ def run_analysis():
             except:
                 continue
 
-        result_df = pd.DataFrame(
+        df_result = pd.DataFrame(
             rows,
-            columns=["Stock","P2L%","6th","Price",
-                     "L1","L2","L3","L4","L5","L6"]
+            columns=[
+                "Stock","P2L%","6th","Price",
+                "Low.y","Low.py","Low.pyy",
+                "Low.q","Low.qy","Low.qyy",
+                "Low.r","Low.10",
+                "L1","L2","L3","L4","L5","L6"
+            ]
         )
 
-        if result_df.empty:
+        if df_result.empty:
             st.warning("No data available")
             continue
 
-        index_summary[index_name] = round(result_df["P2L%"].mean(),2)
+        # SORTING (Original Priority Logic)
+        df_result["Color"] = df_result.apply(get_color, axis=1)
 
-        result_df = result_df.sort_values(by="P2L%")
+        df_result = df_result.sort_values(by=["P2L%"])
 
-        st.dataframe(result_df, use_container_width=True)
+        # DISPLAY WITH ROW COLORS
+        def highlight_row(row):
+            color = row["Color"]
+            if color == "":
+                return [""] * len(row)
+            return [f"background-color:{color}"] * len(row)
 
-    st.markdown("## 📊 INDEX P2L SUMMARY")
-    for k,v in index_summary.items():
-        st.write(f"{k}: {v}%")
+        st.dataframe(
+            df_result.style.apply(highlight_row, axis=1),
+            use_container_width=True
+        )
 
 # =====================================================
 # BUTTON
