@@ -1,305 +1,215 @@
-# ---------------------------------------------------
-# INSTALL (Run once)
-# pip install streamlit yfinance pandas requests openpyxl
-# ---------------------------------------------------
+# =====================================================
+# IMPORT
+# =====================================================
 
 import streamlit as st
-import yfinance as yf
 import pandas as pd
-import base64
+import yfinance as yf
 import requests
-from datetime import datetime
-import os
+import io
+import warnings
 
-st.set_page_config(page_title="📊 Live Stock P2L", layout="wide")
-st.title("📊 Live Prices with P2L")
+# =====================================================
+# SETTINGS
+# =====================================================
 
-# ---------------------------------------------------
-# TELEGRAM SETTINGS
+warnings.filterwarnings("ignore")
+pd.options.display.float_format = '{:.2f}'.format
 
-BOT_TOKEN = "YOUR_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"
+st.set_page_config(layout="wide")
 
-# ---------------------------------------------------
-# FLASHING CSS
+st.title("NSE Index Stock Analysis")
 
-st.markdown("""
-<style>
-@keyframes flash {
-0% { opacity: 1; }
-50% { opacity: 0.2; }
-100% { opacity: 1; }
-}
-table {
-background-color:#0e1117;
-color:white;
-}
-</style>
-""", unsafe_allow_html=True)
+# =====================================================
+# NSE INDEX CSV LINKS
+# =====================================================
 
-# ---------------------------------------------------
-# 📂 EXCEL UPLOAD
+index_urls = {
+    "Nifty 50":
+    "https://archives.nseindia.com/content/indices/ind_nifty50list.csv",
 
-st.markdown("### 📂 Upload Excel for Score Analysis")
+    "Nifty Next 50":
+    "https://archives.nseindia.com/content/indices/ind_niftynext50list.csv",
 
-excel_file = st.file_uploader(
-"Upload Excel File",
-type=["xlsx"]
-)
-
-EXCEL_PATH="stock_scores.xlsx"
-
-excel_df=None
-
-if excel_file is not None:
-
-    if os.path.exists(EXCEL_PATH):
-        os.remove(EXCEL_PATH)
-
-    with open(EXCEL_PATH,"wb") as f:
-        f.write(excel_file.read())
-
-    excel_df=pd.read_excel(EXCEL_PATH)
-
-    excel_df["Stock"]=(
-    excel_df["Stock"]
-    .astype(str)
-    .str.replace(".NS","")
-    .str.upper()
-    )
-
-# ---------------------------------------------------
-# ⭐ STOCKSTAR INPUT
-
-stockstar_input = st.text_input(
-"⭐ StockStar (Comma Separated)",
-"BOSCHLTD.NS, BSE.NS, HEROMOTOCO.NS, HINDALCO.NS, HINDZINC.NS, M&M.NS, MUTHOOTFIN.NS, PIIND.NS"
-).upper()
-
-stockstar_list=[
-s.strip().replace(".NS","")
-for s in stockstar_input.split(",")
-if s.strip()!=""
-]
-
-# ---------------------------------------------------
-# SOUND SETTINGS
-
-sound_alert = st.toggle(
-"🔊 Enable Alert Sound for -5% Green Stocks",
-value=False
-)
-
-# ---------------------------------------------------
-# TELEGRAM ALERT
-
-telegram_alert = st.toggle(
-"📲 Enable Telegram Alert for Green Flashing",
-value=False
-)
-
-# ---------------------------------------------------
-# SOUND UPLOAD
-
-st.markdown("### 🎵 Alert Sound Settings")
-
-uploaded_sound = st.file_uploader(
-"Upload Your Custom Sound (.mp3 or .wav)",
-type=["mp3","wav"]
-)
-
-DEFAULT_SOUND_URL="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
-
-# ---------------------------------------------------
-# STOCK LIST
-
-stocks={
-"RELIANCE.NS":1402.25,
-"HDFCBANK.NS":896.50,
-"INFY.NS":1260.94,
-"TCS.NS":2578.54,
-"ITC.NS":316.51,
+    "Nifty Midcap 50":
+    "https://archives.nseindia.com/content/indices/ind_niftymidcap50list.csv"
 }
 
-# ---------------------------------------------------
-# ✅ NEW ADDITION
-# FETCH VWAP FROM NSE
+# =====================================================
+# FETCH STOCK LIST
+# =====================================================
 
-@st.cache_data(ttl=60)
-def fetch_vwap():
+def get_index_stocks(url):
 
-    url="https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers)
+    df = pd.read_csv(io.StringIO(response.text))
 
-    headers={
-    "User-Agent":"Mozilla/5.0",
-    "Accept":"application/json"
-    }
+    stocks = df["Symbol"].dropna().tolist()
+    return [stock + ".NS" for stock in stocks]
 
-    session=requests.Session()
+# =====================================================
+# BUTTON
+# =====================================================
 
-    session.get("https://www.nseindia.com",headers=headers)
+if st.button("RUN ANALYSIS"):
 
-    data=session.get(url,headers=headers).json()
+    index_summary = {}
 
-    vwap_dict={}
+    for index_name, url in index_urls.items():
 
-    for item in data["data"]:
-
-        symbol=item["symbol"]
-
-        if "vwap" in item:
-
-            vwap_dict[symbol]=item["vwap"]
-
-    return vwap_dict
-
-
-# ---------------------------------------------------
-# FETCH DATA
-
-@st.cache_data(ttl=60)
-
-def fetch_data():
-
-    vwap_data=fetch_vwap()
-
-    symbols=list(stocks.keys())
-
-    data=yf.download(
-    tickers=symbols,
-    period="2d",
-    interval="1d",
-    group_by="ticker",
-    progress=False
-    )
-
-    rows=[]
-
-    for sym in symbols:
+        st.markdown(f"## {index_name}")
 
         try:
-
-            ref=stocks[sym]
-
-            price=data[sym]["Close"].iloc[-1]
-
-            prev=data[sym]["Close"].iloc[-2]
-
-            openp=data[sym]["Open"].iloc[-1]
-
-            high=data[sym]["High"].iloc[-1]
-
-            low=data[sym]["Low"].iloc[-1]
-
-            p2l=((price-ref)/ref)*100
-
-            chg=((price-prev)/prev)*100
-
-            symbol_clean=sym.replace(".NS","")
-
-            vwap=vwap_data.get(symbol_clean,"")
-
-            rows.append({
-
-            "Stock":symbol_clean,
-
-            "P2L %":p2l,
-
-            "Price":price,
-
-            "VWAP":vwap,   # ✅ ADDED
-
-            "% Chg":chg,
-
-            "Low Price":ref,
-
-            "Open":openp,
-
-            "High":high,
-
-            "Low":low
-
-            })
-
+            stocks = get_index_stocks(url)
         except:
-            pass
+            st.error("Could not fetch stock list")
+            continue
 
-    return pd.DataFrame(rows)
+        rows = []
 
-# ---------------------------------------------------
-# BUTTONS
+        for symbol in stocks:
 
-col1,col2=st.columns(2)
+            try:
+                data = yf.download(
+                    symbol,
+                    period="15d",
+                    progress=False,
+                    auto_adjust=False
+                ).dropna()
 
-with col1:
+                if len(data) < 12:
+                    continue
 
-    if st.button("🔄 Refresh"):
+                Low_y   = round(data["Low"].iloc[-2].item(),2)
+                Low_py  = round(data["Low"].iloc[-3].item(),2)
+                Low_pyy = round(data["Low"].iloc[-4].item(),2)
+                Low_q   = round(data["Low"].iloc[-5].item(),2)
+                Low_qy  = round(data["Low"].iloc[-6].item(),2)
+                Low_qyy = round(data["Low"].iloc[-7].item(),2)
+                Low_r   = round(data["Low"].iloc[-8].item(),2)
 
-        st.cache_data.clear()
+                Low_10 = round(data["Low"].iloc[-11:-1].min().item(),2)
+                today_close = round(data["Close"].iloc[-1].item(),2)
 
-        st.rerun()
+                P2L_10 = ((today_close - Low_10) / Low_10) * 100
 
-with col2:
+                L1 = ((Low_y - Low_py) / Low_py) * 100
+                L2 = ((Low_py - Low_pyy) / Low_pyy) * 100
+                L3 = ((Low_pyy - Low_q) / Low_q) * 100
+                L4 = ((Low_q - Low_qy) / Low_qy) * 100
+                L5 = ((Low_qy - Low_qyy) / Low_qyy) * 100
+                L6 = ((Low_qyy - Low_r) / Low_r) * 100
 
-    sort_clicked=st.button("📈 Sort by P2L")
+                L_values = [L1, L2, L3, L4, L5, L6]
 
-# ---------------------------------------------------
+                continuous = 0
+                for val in L_values:
+                    if val < 0:
+                        continuous += 1
+                    else:
+                        break
 
-df=fetch_data()
+                sum_L1_L3 = L1 + L2 + L3
+                sum_L1_L6 = sum(L_values)
 
-# ---------------------------------------------------
+                signal = ""
 
-if sort_clicked:
+                if  continuous > 4 and sum_L1_L3 < -4 and sum_L1_L6 < -8:
+                    signal = "6thSense"
+                elif continuous > 2 and sum_L1_L3 < -3 and sum_L1_L6 < -6:
+                    signal = "Sense"
+                elif continuous > 2 and sum_L1_L3 < -3 and sum_L1_L6 < -3:
+                    signal = "Alert"
+                elif continuous > 1 and sum_L1_L3 < -2 and sum_L1_L6 < -3:
+                    signal = "Extra"
 
-    df=df.sort_values("P2L %",ascending=False)
+                rows.append([
+                    symbol.replace(".NS",""),
+                    P2L_10,
+                    signal,
+                    today_close,
+                    Low_y,
+                    Low_py,
+                    Low_pyy,
+                    Low_q,
+                    Low_qy,
+                    Low_qyy,
+                    Low_r,
+                    Low_10,
+                    L1, L2, L3, L4, L5, L6
+                ])
 
-# ---------------------------------------------------
-# TABLE
+            except:
+                continue
 
-def generate_html_table(dataframe):
+        df = pd.DataFrame(
+            rows,
+            columns=[
+                "Stock",
+                "P2L%",
+                "6th",
+                "Price",
+                "Low.y",
+                "Low.py",
+                "Low.pyy",
+                "Low.q",
+                "Low.qy",
+                "Low.qyy",
+                "Low.r",
+                "Low.10",
+                "L1","L2","L3","L4","L5","L6"
+            ]
+        ).dropna()
 
-    html="<table style='width:100%;border-collapse:collapse;'>"
+        if df.empty:
+            st.warning("No data available")
+            continue
 
-    html+="<tr style='background-color:#111;'>"
+        # INDEX P2L
+        avg_price = df["Price"].mean()
+        avg_low   = df["Low.y"].mean()
+        index_p2l = ((avg_price - avg_low) / avg_low) * 100
+        index_summary[index_name] = index_p2l
 
-    for col in dataframe.columns:
+        # SORTING
+        def is_colored(row):
+            return (
+                row["6th"] != "" and
+                row["L1"] < -0.50 and
+                row["L2"] < -0.50 and
+                row["L3"] < -0.50
+            )
 
-        html+=f"<th style='padding:8px;border:1px solid #444'>{col}</th>"
+        df["Priority"] = df.apply(lambda x: 0 if is_colored(x) else 1, axis=1)
+        df = df.sort_values(by=["Priority","P2L%"], ascending=[True, True]).drop(columns=["Priority"])
 
-    html+="</tr>"
+        # FORMAT
+        styled_df = (
+            df.style
+            .format({
+                "Price":"{:.2f}",
+                "Low.y":"{:.2f}",
+                "Low.py":"{:.2f}",
+                "Low.pyy":"{:.2f}",
+                "Low.q":"{:.2f}",
+                "Low.qy":"{:.2f}",
+                "Low.qyy":"{:.2f}",
+                "Low.r":"{:.2f}",
+                "Low.10":"{:.2f}",
+                "P2L%":"{:.2f}%",
+                "L1":"{:.2f}%",
+                "L2":"{:.2f}%",
+                "L3":"{:.2f}%",
+                "L4":"{:.2f}%",
+                "L5":"{:.2f}%",
+                "L6":"{:.2f}%"
+            })
+            .background_gradient(subset=["P2L%","L1","L2","L3","L4","L5","L6"], cmap="RdYlGn")
+        )
 
-    for _,row in dataframe.iterrows():
+        st.dataframe(styled_df, use_container_width=True)
 
-        html+="<tr>"
-
-        for col in dataframe.columns:
-
-            value=row[col]
-
-            style="padding:6px;border:1px solid #444;text-align:center;"
-
-            # ✅ VWAP COLOR ADDITION ONLY
-
-            if col=="VWAP":
-
-                style+="color:lightgrey;"
-
-            if isinstance(value,float):
-
-                value=f"{value:.2f}"
-
-            html+=f"<td style='{style}'>{value}</td>"
-
-        html+="</tr>"
-
-    html+="</table>"
-
-    return html
-
-st.markdown(generate_html_table(df),unsafe_allow_html=True)
-
-# ---------------------------------------------------
-
-avg=df["P2L %"].mean()
-
-st.markdown(f"### 📊 Average P2L of All Stocks is **{avg:.2f}%**")
+    st.markdown("## INDEX P2L SUMMARY")
+    for k,v in index_summary.items():
+        st.write(f"{k} P2L: {round(v,2)} %")
