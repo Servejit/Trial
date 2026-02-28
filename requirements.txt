@@ -15,3 +15,7 @@ pandas
 requests
 openpyxl
 numpy
+streamlit
+pandas
+yfinance
+requests
