@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1600" width="900" height="1600">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f4b75f"/><stop offset=".55" stop-color="#f9d89a"/><stop offset="1" stop-color="#d77d42"/></linearGradient>
+ <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b86c3d"/><stop offset="1" stop-color="#51382f"/></linearGradient>
+ <linearGradient id="shirt" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f5e8c9"/><stop offset="1" stop-color="#b7a88a"/></linearGradient>
+ <radialGradient id="sun"><stop stop-color="#fff6c5" stop-opacity=".95"/><stop offset="1" stop-color="#ffd16d" stop-opacity="0"/></radialGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="900" height="1600" fill="url(#sky)"/>
+<circle cx="690" cy="280" r="250" fill="url(#sun)"/><circle cx="690" cy="280" r="94" fill="#fff0b0" opacity=".8"/>
+
+ <path d="M0 920 L900 850 V1600 H0Z" fill="url(#ground)"/>
+ <path d="M0 880 L900 780 L900 920 L0 1040Z" fill="#d7a46a" opacity=".6"/>
+ <rect x="80" y="280" width="300" height="720" fill="#9b5d37" stroke="#5c3929" stroke-width="18"/><rect x="110" y="310" width="240" height="660" fill="#70422e"/>
+ <path d="M145 350 V925 M205 350 V925 M265 350 V925 M325 350 V925" stroke="#b77a4c" stroke-width="10"/>
+ <circle cx="315" cy="650" r="14" fill="#e6bd71"/>
+ <path d="M0 230 L160 120 L400 250 L620 110 L900 250 V0 H0Z" fill="#a76540" opacity=".7"/>
+ <path d="M595 1110 Q710 1050 900 1120 V1600 H520Z" fill="#8c593b" opacity=".5"/>
+ <g transform="translate(10 0)"><rect x="590" y="1010" width="170" height="110" rx="8" fill="#e7d7b8" stroke="#5e4939" stroke-width="8"/><path d="M620 1065 Q660 1025 715 1060 L735 1085 L630 1090Z" fill="#f6f0e5" stroke="#9b744c" stroke-width="5"/></g>
+ 
+<!-- recurring young Punjabi man -->
+<g id="man" stroke="#382c28" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+ <path d="M385 735 Q330 820 345 1015 L550 1015 Q568 830 505 735Z" fill="url(#shirt)"/>
+ <path d="M386 770 L330 905 L286 1010" fill="none" stroke="#8d5b42" stroke-width="45"/>
+ <path d="M505 770 L568 900 L610 985" fill="none" stroke="#8d5b42" stroke-width="45"/>
+ <path d="M395 1000 L390 1250 L365 1435" fill="none" stroke="#333d4b" stroke-width="72"/>
+ <path d="M500 1000 L515 1245 L550 1435" fill="none" stroke="#333d4b" stroke-width="72"/>
+ <path d="M333 1440 L395 1440 L415 1470 L315 1470Z" fill="#eee6d4"/>
+ <path d="M520 1440 L565 1440 L605 1470 L510 1470Z" fill="#eee6d4"/>
+ <path d="M389 735 Q382 675 415 652 L478 652 Q510 680 505 735Z" fill="#9b6245"/>
+ <ellipse cx="447" cy="605" rx="94" ry="112" fill="#b87551"/>
+ <path d="M354 598 Q340 480 438 475 Q533 478 540 580 L518 550 L505 520 Q440 560 368 535Z" fill="#211f21" stroke="none"/>
+ <path d="M365 610 Q390 594 412 610 M466 610 Q490 592 513 607" fill="none" stroke="#30211e" stroke-width="9"/>
+ <ellipse cx="399" cy="620" rx="8" ry="11" fill="#29211f" stroke="none"/><ellipse cx="484" cy="620" rx="8" ry="11" fill="#29211f" stroke="none"/>
+ <path d="M422 660 Q449 675 478 656" fill="none" stroke="#60382e" stroke-width="7"/>
+ <path d="M372 565 Q405 550 425 566 M464 566 Q490 550 515 564" fill="none" stroke="#201b1a" stroke-width="12"/>
+</g>
+<rect width="900" height="1600" fill="#3d2116" opacity=".08"/>
+<rect x="22" y="22" width="856" height="1556" rx="18" fill="none" stroke="#ffe5ae" stroke-opacity=".55" stroke-width="3"/>
+</svg>
