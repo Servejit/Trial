@@ -32,5 +32,6 @@ jobs:
             echo "Video is already up to date."
           else
             git commit -m "Add rendered 30-second Punjabi motivational video"
+            git pull --rebase origin main
             git push
           fi
